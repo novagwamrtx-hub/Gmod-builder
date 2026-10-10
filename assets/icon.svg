@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>GMod Collection Builder</title>
+  <rect x="48" y="48" width="928" height="928" rx="215.3" fill="#0e1014"/>
+  <polygon points="512,215.12 254.89,363.56 254.89,660.44 512,808.88 769.11,660.44 769.11,363.56" fill="#f5f7fa" stroke="#f5f7fa" stroke-width="92" stroke-linejoin="round"/>
+  <g fill="#0e1014">
+    <rect x="337" y="337" width="153" height="153" rx="36.72"/>
+    <rect x="534" y="337" width="153" height="153" rx="36.72"/>
+    <rect x="337" y="534" width="153" height="153" rx="36.72"/>
+  </g>
+  <g fill="#4a9eff">
+    <rect x="534" y="587.55" width="153" height="45.9" rx="13.77"/>
+    <rect x="587.55" y="534" width="45.9" height="153" rx="13.77"/>
+  </g>
+</svg>

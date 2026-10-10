@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <title>GMod Collection Builder</title>
+  <rect width="1280" height="640" fill="#0e1014"/>
+  <g transform="translate(290 320) scale(0.56)">
+    <polygon points="0,-279.19 -241.79,-139.6 -241.79,139.6 -0,279.19 241.79,139.6 241.79,-139.6" fill="#f5f7fa" stroke="#f5f7fa" stroke-width="88" stroke-linejoin="round"/>
+    <g fill="#0e1014">
+      <rect x="-160" y="-160" width="140" height="140" rx="33.6"/>
+      <rect x="20" y="-160" width="140" height="140" rx="33.6"/>
+      <rect x="-160" y="20" width="140" height="140" rx="33.6"/>
+    </g>
+    <g fill="#4a9eff">
+      <rect x="20" y="69" width="140" height="42" rx="12.6"/>
+      <rect x="69" y="20" width="42" height="140" rx="12.6"/>
+    </g>
+  </g>
+  <g font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+    <text x="520" y="292" font-size="76" font-weight="700" fill="#f5f7fa">GMod Collection</text>
+    <text x="520" y="378" font-size="76" font-weight="700" fill="#f5f7fa">Builder</text>
+    <text x="522" y="446" font-size="30" fill="#9aa4b2">Find addons, build a collection, check it,</text>
+    <text x="522" y="488" font-size="30" fill="#9aa4b2">send it to Steam.</text>
+  </g>
+</svg>
