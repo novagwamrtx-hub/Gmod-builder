@@ -4,6 +4,7 @@ description = "Browser extension that adds a list of addons to a Steam Workshop 
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]

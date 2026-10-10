@@ -10,9 +10,12 @@ pub mod discover;
 pub mod export;
 pub mod gma;
 pub mod handoff;
+#[cfg(feature = "client")]
+pub mod http;
 pub mod model;
 #[cfg(feature = "client")]
 pub mod steam;
+pub mod updates;
 
 pub use model::{parse_workshop_id, Addon, AddonStatus, CollectionDraft, Kind, Snap, GMOD_APPID};
 #[cfg(feature = "client")]

@@ -22,11 +22,13 @@ const MAX_NESTED_COLLECTIONS: usize = 50;
 /// Collections sampled for a discovery: this many pages of 100.
 const DISCOVER_CANDIDATES: usize = 80;
 const PARALLEL_REQUESTS: usize = 8;
+/// How often a request is tried again when Steam is busy.
+const RETRIES: u32 = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("network error: {0}")]
-    Http(#[from] reqwest::Error),
+    #[error("{}", describe(.0))]
+    Http(reqwest::Error),
     #[error("unexpected response from Steam: {0}")]
     Parse(#[from] serde_json::Error),
     #[error("a Steam Web API key is required for this")]
@@ -39,6 +41,43 @@ pub enum Error {
     Status(u16),
     #[error("no collection with id {0}")]
     NotFound(u64),
+}
+
+/// reqwest's errors name the address that was asked for, and ours carries
+/// the user's API key. Drop it before the error can reach a screen or a log.
+impl From<reqwest::Error> for Error {
+    fn from(error: reqwest::Error) -> Self {
+        Error::Http(error.without_url())
+    }
+}
+
+impl Error {
+    /// Worth asking again in a moment.
+    fn is_temporary(&self) -> bool {
+        match self {
+            Error::RateLimited => true,
+            Error::Status(code) => *code >= 500,
+            Error::Http(error) => failed_to_connect(error),
+            _ => false,
+        }
+    }
+}
+
+fn describe(error: &reqwest::Error) -> String {
+    if error.is_timeout() {
+        "Steam took too long to answer".to_string()
+    } else if failed_to_connect(error) {
+        "could not reach Steam; check your internet connection".to_string()
+    } else {
+        format!("network error: {error}")
+    }
+}
+
+fn failed_to_connect(error: &reqwest::Error) -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    return error.is_connect();
+    #[cfg(target_arch = "wasm32")]
+    return error.is_request();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -153,7 +192,7 @@ pub struct SteamClient {
 impl SteamClient {
     pub fn new(key: Option<String>) -> Self {
         let key = key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
-        Self { http: reqwest::Client::new(), key }
+        Self { http: crate::http::client(), key }
     }
 
     pub fn has_key(&self) -> bool {
@@ -164,11 +203,30 @@ impl SteamClient {
         self.key.as_deref().ok_or(Error::MissingKey)
     }
 
+    /// Sends a request and returns what came back, asking again a couple of
+    /// times when Steam is busy or the connection could not be made.
+    async fn fetch(&self, request: impl Fn() -> reqwest::RequestBuilder) -> Result<String, Error> {
+        let mut attempt = 0;
+        loop {
+            let outcome = match request().send().await {
+                Ok(response) => read(response).await,
+                Err(error) => Err(error.into()),
+            };
+            match outcome {
+                Err(error) if attempt < RETRIES && error.is_temporary() => {
+                    attempt += 1;
+                    crate::http::pause_before_retry(attempt).await;
+                }
+                outcome => return outcome,
+            }
+        }
+    }
+
     /// Search the GMod Workshop. Needs a key.
     pub async fn search(&self, query: &SearchQuery) -> Result<SearchPage, Error> {
         let params = query.params(self.key()?);
         let url = format!("{API}/IPublishedFileService/QueryFiles/v1/");
-        let body = read(self.http.get(url).query(&params).send().await?).await?;
+        let body = self.fetch(|| self.http.get(&url).query(&params)).await?;
         Ok(parse_file_list(&body)?)
     }
 
@@ -177,7 +235,7 @@ impl SteamClient {
         let mut params = query.params(self.key()?);
         params.push(("totalonly".to_string(), "true".to_string()));
         let url = format!("{API}/IPublishedFileService/QueryFiles/v1/");
-        let body = read(self.http.get(url).query(&params).send().await?).await?;
+        let body = self.fetch(|| self.http.get(&url).query(&params)).await?;
         Ok(parse_file_list(&body)?.total)
     }
 
@@ -200,7 +258,7 @@ impl SteamClient {
             ("strip_description_bbcode", "true".to_string()),
         ];
         let url = format!("{API}/IPublishedFileService/GetUserFiles/v1/");
-        let body = read(self.http.get(url).query(&params).send().await?).await?;
+        let body = self.fetch(|| self.http.get(&url).query(&params)).await?;
         Ok(parse_file_list(&body)?.addons)
     }
 
@@ -306,7 +364,7 @@ impl SteamClient {
             params.push((format!("publishedfileids[{i}]"), id.to_string()));
         }
         let url = format!("{API}/IPublishedFileService/GetDetails/v1/");
-        read(self.http.get(url).query(&params).send().await?).await
+        self.fetch(|| self.http.get(&url).query(&params)).await
     }
 
     async fn details_keyless(&self, ids: &[u64]) -> Result<String, Error> {
@@ -315,7 +373,7 @@ impl SteamClient {
             params.push((format!("publishedfileids[{i}]"), id.to_string()));
         }
         let url = format!("{API}/ISteamRemoteStorage/GetPublishedFileDetails/v1/");
-        read(self.http.post(url).form(&params).send().await?).await
+        self.fetch(|| self.http.post(&url).form(&params)).await
     }
 
     /// Direct members of a collection. Works without a key.
@@ -325,7 +383,7 @@ impl SteamClient {
             ("publishedfileids[0]".to_string(), id.to_string()),
         ];
         let url = format!("{API}/ISteamRemoteStorage/GetCollectionDetails/v1/");
-        let body = read(self.http.post(url).form(&params).send().await?).await?;
+        let body = self.fetch(|| self.http.post(&url).form(&params)).await?;
         parse_collection(&body)?.ok_or(Error::NotFound(id))
     }
 
@@ -406,5 +464,52 @@ mod tests {
     fn blank_key_counts_as_no_key() {
         assert!(!SteamClient::new(Some("  ".into())).has_key());
         assert!(SteamClient::new(Some("abc".into())).has_key());
+    }
+
+    /// Answers each connection on a local port with the next of `replies`.
+    fn serve(replies: Vec<&'static str>) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for reply in replies {
+                let (mut stream, _) = listener.accept().unwrap();
+                let _ = stream.read(&mut [0; 2048]);
+                let _ = stream.write_all(reply.as_bytes());
+            }
+        });
+        address
+    }
+
+    const BUSY: &str = "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
+    const FINE: &str = "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok";
+    const REFUSED: &str = "HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
+
+    #[tokio::test]
+    async fn a_busy_server_is_asked_again() {
+        let client = SteamClient::new(None);
+        let url = serve(vec![BUSY, FINE]);
+        assert_eq!(client.fetch(|| client.http.get(&url)).await.unwrap(), "ok");
+
+        let url = serve(vec![BUSY, BUSY, BUSY]);
+        let error = client.fetch(|| client.http.get(&url)).await.unwrap_err();
+        assert!(matches!(error, Error::Status(503)), "gives up after the last try: {error}");
+
+        let url = serve(vec![REFUSED]);
+        let error = client.fetch(|| client.http.get(&url)).await.unwrap_err();
+        assert!(matches!(error, Error::InvalidKey), "a refused key is not worth asking again");
+    }
+
+    #[tokio::test]
+    async fn errors_never_show_the_key() {
+        // A port that nothing listens on: take one, then let it go.
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let url = format!("http://127.0.0.1:{port}/?key=SECRETKEY");
+        let raw = reqwest::Client::new().get(&url).send().await.unwrap_err();
+        assert!(raw.to_string().contains("SECRETKEY"), "reqwest names the address: {raw}");
+        let error = Error::from(raw);
+        assert!(!error.to_string().contains("SECRETKEY"), "{error}");
+        assert!(!format!("{error:?}").contains("SECRETKEY"), "{error:?}");
+        assert!(error.is_temporary());
     }
 }
