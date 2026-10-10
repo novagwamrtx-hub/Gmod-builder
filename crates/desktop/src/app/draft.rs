@@ -8,6 +8,7 @@ use eframe::egui;
 use gmcb_core::{Addon, AddonStatus, CollectionDraft};
 
 use super::{App, Msg};
+use crate::files;
 use crate::settings::Settings;
 
 const AUTOSAVE_DELAY: Duration = Duration::from_secs(1);
@@ -243,7 +244,7 @@ impl App {
     }
 
     pub(crate) fn import_installed(&mut self, ctx: &egui::Context) {
-        let added = self.add_many(ctx, self.installed.clone(), false);
+        let added = self.add_many(ctx, self.installed.ids(), false);
         self.info(format!("Added {added} addon(s) installed on this computer"));
     }
 
@@ -323,12 +324,7 @@ impl App {
         };
         let written = serde_json::to_string_pretty(&self.draft)
             .map_err(|e| e.to_string())
-            .and_then(|text| {
-                if let Some(dir) = path.parent() {
-                    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-                }
-                std::fs::write(&path, text).map_err(|e| e.to_string())
-            });
+            .and_then(|text| files::write(&path, &text).map_err(|e| e.to_string()));
         // Either way, do not retry on every frame.
         self.saved = self.draft.clone();
         match written {
@@ -380,7 +376,7 @@ impl App {
     pub(crate) fn export_draft(&mut self, path: PathBuf) {
         let written = serde_json::to_string_pretty(&self.draft)
             .map_err(|e| e.to_string())
-            .and_then(|text| std::fs::write(&path, text).map_err(|e| e.to_string()));
+            .and_then(|text| files::write(&path, &text).map_err(|e| e.to_string()));
         match written {
             Ok(()) => self.info(format!("Saved a copy to {}", path.display())),
             Err(e) => self.error(format!("Could not save the copy: {e}")),
@@ -410,6 +406,8 @@ impl App {
         self.undo.clear();
         self.redo.clear();
         self.want_requirements.clear();
+        self.picked.clear();
+        self.draft_filter.clear();
         self.confirm_delete = false;
     }
 }

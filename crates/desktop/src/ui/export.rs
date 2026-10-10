@@ -49,14 +49,15 @@ impl App {
                     if ui.add_enabled(collection.is_some() && has_addons, send).clicked() {
                         if let Some(collection) = collection {
                             let with_ids = handoff::manage_url(collection, &self.draft.ids);
-                            let url = if with_ids.len() <= MAX_HANDOFF_URL {
-                                with_ids
-                            } else {
-                                handoff::manage_page_url(collection)
-                            };
+                            let fits = with_ids.len() <= MAX_HANDOFF_URL;
+                            let url = if fits { with_ids } else { handoff::manage_page_url(collection) };
                             ui.ctx().copy_text(export::id_list(&self.draft.ids));
                             ui.ctx().open_url(egui::OpenUrl::new_tab(url));
-                            self.info("Opened the collection in your browser; addon ids copied");
+                            self.info(if fits {
+                                "Opened the collection in your browser"
+                            } else {
+                                "Opened the collection. The list is too long for a link: paste it into the extension's panel"
+                            });
                         }
                     }
                     if !has_addons {
@@ -66,7 +67,8 @@ impl App {
                 ui.label(theme::small(
                     "Opens the collection's edit page, where the browser extension shows what to add \
                      and what the collection has that your draft does not. You must be logged into \
-                     Steam there as the collection's owner. The ids are also copied to the clipboard.",
+                     Steam there as the collection's owner. The ids are also copied to the clipboard, \
+                     to paste into the extension's panel when a draft is too long to travel in the link.",
                 ));
             });
 
@@ -122,7 +124,7 @@ impl App {
 
             ui.label("");
             let installed =
-                self.draft.ids.iter().filter(|id| self.installed.binary_search(id).is_ok()).count();
+                self.draft.ids.iter().filter(|&&id| self.installed.has_files(id)).count();
             let hint = format!(
                 "Leaves out script-only addons, which players get from the server anyway, and sends \
                  each map only while the server is on it. Works for the {installed} of {} addons \

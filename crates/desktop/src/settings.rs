@@ -1,7 +1,11 @@
+//! What the user has chosen, kept between runs, and where the app keeps its
+//! other files.
+
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::files;
 use crate::ui::theme::Look;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +36,9 @@ pub struct Settings {
     /// Show vouch scores and offer to share votes.
     #[serde(default = "yes")]
     pub community: bool,
+    /// Ask GitHub, when the app starts, whether a newer version is out.
+    #[serde(default = "yes")]
+    pub check_updates: bool,
 }
 
 fn yes() -> bool {
@@ -62,6 +69,7 @@ impl Default for Settings {
             discover_per_type: ten(),
             stale_after_years: eight(),
             community: true,
+            check_updates: true,
         }
     }
 }
@@ -77,8 +85,13 @@ impl Settings {
     }
 
     /// Where discoveries are kept so repeating one is instant.
-    pub fn cache_dir() -> Option<PathBuf> {
+    pub fn discoveries_dir() -> Option<PathBuf> {
         dirs().map(|dirs| dirs.cache_dir().join("discoveries"))
+    }
+
+    /// Where downloaded thumbnails are kept.
+    pub fn thumbnails_dir() -> Option<PathBuf> {
+        dirs().map(|dirs| dirs.cache_dir().join("thumbnails"))
     }
 
     /// The user's own vouches and warnings.
@@ -96,10 +109,7 @@ impl Settings {
 
     pub fn save(&self) -> std::io::Result<()> {
         let path = Self::path().ok_or_else(|| std::io::Error::other("no config directory"))?;
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        std::fs::write(path, serde_json::to_string_pretty(self)?)
+        files::write(&path, &serde_json::to_string_pretty(self)?)
     }
 }
 

@@ -4,6 +4,7 @@ description = "Desktop app for building Garry's Mod Workshop collections"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "gmod-collection-builder"
@@ -14,12 +15,15 @@ gmcb-core = { path = "../core" }
 serde.workspace = true
 serde_json.workspace = true
 eframe = "0.36"
-egui_extras = { version = "0.36", features = ["image", "http"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
-tokio = { version = "1", features = ["rt-multi-thread"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
 rfd = "0.17"
 directories = "6"
 arboard = { version = "3", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
 
 [dev-dependencies]
 egui_kittest = { version = "0.36", features = ["wgpu"] }

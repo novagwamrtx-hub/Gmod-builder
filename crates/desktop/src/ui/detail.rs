@@ -2,6 +2,7 @@
 //! requires, what is built for it, and the vouch buttons.
 
 use eframe::egui::{self, Align, Layout, RichText};
+use gmcb_core::community::MIN_VOTES;
 use gmcb_core::AddonStatus;
 
 use super::{theme, widgets, RowAction};
@@ -9,13 +10,18 @@ use crate::app::{App, RelatedKind, Tab};
 use crate::format;
 
 impl App {
-    /// The vouch score of an addon or collection, once enough builders have
-    /// voted on it.
-    pub(crate) fn vouch_score(&self, id: u64) -> Option<u32> {
-        if self.settings.community {
-            self.tally_of(id).score()
-        } else {
-            None
+    /// What a row says about vouches: the score, once enough builders have
+    /// voted, and the user's own verdict.
+    pub(crate) fn vouch_note(&self, id: u64) -> Option<String> {
+        if !self.settings.community {
+            return None;
+        }
+        let score = self.tally_of(id).score().map(|score| format!("vouch score {score}"));
+        let mine = self.votes.get(&id).map(|&vouch| if vouch { "you vouched" } else { "you warned" });
+        match (score, mine) {
+            (Some(score), Some(mine)) => Some(format!("{score} · {mine}")),
+            (Some(score), None) => Some(score),
+            (None, mine) => mine.map(str::to_string),
         }
     }
 
@@ -43,9 +49,10 @@ impl App {
             let said = match (tally.score(), tally.votes()) {
                 (Some(score), votes) => format!("Vouch score {score} · {votes} builders"),
                 (None, 0) => "No vouches yet".to_string(),
-                (None, _) => format!("{} vouched, {} warned", tally.up, tally.down),
+                (None, _) => format!("{} vouched, {} warned · needs {MIN_VOTES} for a score", tally.up, tally.down),
             };
-            ui.label(theme::small(said));
+            // Kept whole: in a narrow panel it goes under the buttons.
+            ui.add(egui::Label::new(theme::small(said)).wrap_mode(egui::TextWrapMode::Extend));
         });
         verdict
     }
@@ -114,6 +121,12 @@ impl App {
             });
             if addon.status == AddonStatus::Ok {
                 verdict = self.vouch_row(ui, id);
+                if self.settings.community && self.votes.is_empty() {
+                    ui.label(theme::small(
+                        "Vouch if it worked well in a collection of yours; warn if it was broken or \
+                         clashed with other addons. Settings has more about vouches.",
+                    ));
+                }
             }
             ui.hyperlink_to("Open on the Workshop", addon.url());
             if !addon.description.trim().is_empty() {

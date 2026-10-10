@@ -1,12 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod files;
 mod format;
+mod gmod;
 mod ideas;
-mod local;
 #[cfg(test)]
 mod preview;
 mod settings;
+mod thumbs;
 mod ui;
 
 use eframe::egui;
@@ -22,7 +24,6 @@ fn main() -> eframe::Result {
         "GMod Collection Builder",
         options,
         Box::new(|cc| {
-            egui_extras::install_image_loaders(&cc.egui_ctx);
             // A draft file can be passed on the command line (e.g. "Open with").
             let draft = std::env::args_os().nth(1).map(std::path::PathBuf::from);
             Ok(Box::new(app::App::new(&cc.egui_ctx, draft)))

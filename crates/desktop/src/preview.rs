@@ -30,12 +30,13 @@ fn render(app: &mut App, tab: Tab, name: &str) {
 fn render_at(app: &mut App, tab: Tab, name: &str, size: [f32; 2]) {
     app.tab = tab;
     let look = app.settings.look.clone();
+    let thumbnails = app.thumbnails.clone();
     let mut harness = Harness::builder()
         .with_size(size)
         .with_max_steps(40)
         .wgpu()
         .build_ui(|ui| app.show(ui));
-    egui_extras::install_image_loaders(&harness.ctx);
+    thumbnails.install(&harness.ctx);
     theme::apply(&harness.ctx, &look);
     // Thumbnails arrive over the network; give them a few rounds.
     for _ in 0..8 {
@@ -165,6 +166,9 @@ fn render_previews() {
     assert_eq!(app.draft.ids.len(), before);
     app.draft_view = DraftView::ByType;
     render(&mut app, Tab::Draft, "draft-by-type");
+    app.draft_filter = "zombie".into();
+    render(&mut app, Tab::Draft, "draft-filtered");
+    app.draft_filter.clear();
 
     render(&mut app, Tab::Check, "check-before");
     app.draft.target = Some("sandbox".into());
@@ -222,7 +226,9 @@ fn render_previews() {
     assert_eq!(app.draft, written);
 
     app.key_status = crate::app::KeyStatus::Valid;
-    render_at(&mut app, Tab::Settings, "settings-with-key", [1100.0, 1500.0]);
+    app.update = Some("v9.9.9".into());
+    render_at(&mut app, Tab::Settings, "settings-with-key", [1100.0, 1700.0]);
+    app.update = None;
 
     // Every theme, and the other densities. Only in memory: not saved.
     app.start_discover(&ctx, false);

@@ -5,7 +5,6 @@ use gmcb_core::{analysis, changes};
 
 use super::App;
 use crate::format::now_unix;
-use crate::local;
 
 impl App {
     /// Checks the draft. `refresh` re-downloads every addon's details first;
@@ -76,10 +75,9 @@ impl App {
 
     /// Reads the file lists of the draft's addons that the game has on disk.
     pub(crate) fn load_archives(&mut self) {
-        let Some(gmod) = &self.gmod_dir else { return };
         for &id in &self.draft.ids {
-            if !self.archives.contains_key(&id) && self.installed.binary_search(&id).is_ok() {
-                if let Some(archive) = local::read_archive(gmod, id) {
+            if !self.archives.contains_key(&id) {
+                if let Some(archive) = self.installed.archive(id) {
                     self.archives.insert(id, archive);
                 }
             }

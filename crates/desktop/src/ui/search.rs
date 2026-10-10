@@ -165,7 +165,7 @@ impl App {
                 });
             } else {
                 let options =
-                    RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_score(addon.id) };
+                    RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_note(addon.id) };
                 if widgets::addon_row(ui, addon, options, |ui| {
                     self.offer_buttons(ui, addon.id, &mut action);
                 }) {
@@ -271,7 +271,7 @@ impl App {
         let heights = vec![widgets::row_height(); addons.len()];
         widgets::virtual_list(ui, "browse", &heights, |ui, row| {
             let addon = &addons[row];
-            let options = RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_score(addon.id) };
+            let options = RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_note(addon.id) };
             if widgets::addon_row(ui, addon, options, |ui| {
                 self.offer_buttons(ui, addon.id, &mut action);
             }) {

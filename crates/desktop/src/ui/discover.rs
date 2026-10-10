@@ -187,7 +187,7 @@ impl App {
                     now,
                     selected: self.selected == Some(addon.id),
                     note: Some(&note),
-                    vouch: self.vouch_score(addon.id),
+                    vouch: self.vouch_note(addon.id),
                 };
                 if widgets::addon_row(ui, addon, options, |ui| {
                     self.offer_buttons(ui, addon.id, &mut action);

@@ -2,18 +2,19 @@
 //! the answers so that asking again is instant.
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::time::Duration;
 
 use eframe::egui;
 use gmcb_core::discover::Discovery;
 use gmcb_core::{Addon, Kind};
 
 use super::{App, Msg};
+use crate::files;
 use crate::format::now_unix;
 use crate::settings::Settings;
 
 /// A saved discovery is reused for this long before the Workshop is asked again.
-const DISCOVERY_KEPT: u64 = 3 * 24 * 60 * 60;
+pub(super) const DISCOVERY_KEPT: Duration = Duration::from_secs(3 * 24 * 60 * 60);
 
 /// Lower-cased theme, the addon the search was built around, and how many
 /// hundred collections were read.
@@ -22,6 +23,8 @@ pub(super) type DiscoverKey = (String, Option<u64>, usize);
 /// A discovery as kept on disk.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SavedDiscovery {
+    /// What was asked, to be sure the file answers the same question.
+    key: DiscoverKey,
     at: u64,
     discovery: Discovery,
     addons: Vec<Addon>,
@@ -103,25 +106,49 @@ impl App {
     }
 }
 
-fn discovery_path(key: &DiscoverKey) -> Option<PathBuf> {
+/// The file name starts with the theme, for anyone looking in the folder.
+/// What tells two questions apart is the number after it: themes in other
+/// alphabets all read "-----" otherwise.
+fn discovery_file(key: &DiscoverKey) -> String {
     let (theme, anchor, pages) = key;
-    let name: String =
-        theme.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).take(60).collect();
-    Some(Settings::cache_dir()?.join(format!("{name}_{}_{pages}.json", anchor.unwrap_or(0))))
+    let readable: String =
+        theme.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).take(40).collect();
+    let question = format!("{theme}\n{}\n{pages}", anchor.unwrap_or(0));
+    format!("{readable}-{:016x}.json", files::fnv1a(question.as_bytes()))
 }
 
 fn load_discovery(key: &DiscoverKey) -> Option<SavedDiscovery> {
-    let text = std::fs::read_to_string(discovery_path(key)?).ok()?;
-    let saved: SavedDiscovery = serde_json::from_str(&text).ok()?;
-    (now_unix().saturating_sub(saved.at) < DISCOVERY_KEPT).then_some(saved)
+    let path = Settings::discoveries_dir()?.join(discovery_file(key));
+    let saved: SavedDiscovery = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+    let fresh = now_unix().saturating_sub(saved.at) < DISCOVERY_KEPT.as_secs();
+    (fresh && saved.key == *key).then_some(saved)
 }
 
 /// Best effort: a discovery that cannot be saved is simply asked for again.
 pub(super) fn save_discovery(key: &DiscoverKey, discovery: &Discovery, addons: &[Addon]) {
-    let Some(path) = discovery_path(key) else { return };
-    let saved = SavedDiscovery { at: now_unix(), discovery: discovery.clone(), addons: addons.to_vec() };
-    if let (Some(dir), Ok(text)) = (path.parent(), serde_json::to_string(&saved)) {
-        let _ = std::fs::create_dir_all(dir);
-        let _ = std::fs::write(path, text);
+    let Some(dir) = Settings::discoveries_dir() else { return };
+    let saved =
+        SavedDiscovery { key: key.clone(), at: now_unix(), discovery: discovery.clone(), addons: addons.to_vec() };
+    if let Ok(text) = serde_json::to_string(&saved) {
+        let _ = files::write(&dir.join(discovery_file(key)), &text);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_question_gets_its_own_file() {
+        let key = |theme: &str, anchor, pages| (theme.to_string(), anchor, pages);
+        let zombie = discovery_file(&key("zombie survival", None, 3));
+        assert!(zombie.starts_with("zombie-survival-") && zombie.ends_with(".json"), "{zombie}");
+        assert_eq!(zombie, discovery_file(&key("zombie survival", None, 3)));
+        assert_ne!(zombie, discovery_file(&key("zombie survival", None, 5)));
+        assert_ne!(zombie, discovery_file(&key("zombie survival", Some(104482086), 3)));
+        assert_ne!(zombie, discovery_file(&key("zombie-survival", None, 3)));
+        assert_ne!(discovery_file(&key("зомби", None, 3)), discovery_file(&key("войны", None, 3)));
+        let long = discovery_file(&key(&"a".repeat(500), None, 3));
+        assert!(long.len() < 80, "{long}");
     }
 }

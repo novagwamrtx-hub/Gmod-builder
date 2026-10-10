@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 use std::time::Instant;
 
 use eframe::egui;
@@ -19,16 +20,22 @@ use gmcb_core::changes::Change;
 use gmcb_core::community::{Scores, Votes};
 use gmcb_core::discover::Discovery;
 use gmcb_core::gma::Archive;
-use gmcb_core::{Addon, AddonStatus, CollectionDraft, Error, SearchPage, SearchQuery, Sort, SteamClient};
+use gmcb_core::{updates, Addon, AddonStatus, CollectionDraft, Error, SearchPage, SearchQuery, Sort, SteamClient};
 
-use crate::local;
+use crate::files;
+use crate::gmod::{self, Installed};
 use crate::settings::Settings;
+use crate::thumbs::{self, Thumbnails};
 
 pub use discover::DiscoverState;
 use discover::DiscoverKey;
 pub use draft::{DraftView, LibraryEntry};
 pub use search::SearchState;
-pub use vouches::COMMUNITY_REPO;
+
+/// The project's GitHub repository ("owner/name"): where new versions are
+/// released, where shared vouches are sent, and where the scores made from
+/// them are published.
+pub const PROJECT_REPO: &str = "novagwamrtx-hub/Gmod-helper-";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -58,6 +65,8 @@ enum Msg {
     Related { id: u64, kind: RelatedKind, result: Result<Vec<Addon>, Error> },
     KeyChecked { key: String, result: Result<(), Error> },
     Scores(Result<Scores, String>),
+    /// The tag of the project's latest release, if it could be asked.
+    LatestRelease(Option<String>),
 }
 
 #[derive(Default)]
@@ -107,6 +116,8 @@ pub struct App {
     pub(crate) draft_view: DraftView,
     /// Addons ticked in the draft, for acting on several at once.
     pub(crate) picked: HashSet<u64>,
+    /// Only draft addons whose name contains this are listed.
+    pub(crate) draft_filter: String,
 
     /// Details of every addon seen this session.
     pub(crate) addons: HashMap<u64, Addon>,
@@ -130,15 +141,18 @@ pub struct App {
 
     pub(crate) gmod_dir: Option<PathBuf>,
     /// Addons the game has downloaded on this computer.
-    pub(crate) installed: Vec<u64>,
+    pub(crate) installed: Installed,
     pub(crate) archives: HashMap<u64, Archive>,
 
     /// The user's own vouches (true) and warnings (false).
     pub(crate) votes: Votes,
-    /// Votes cast since they were last shared.
-    pub(crate) unshared_votes: bool,
+    /// The verdicts that have been sent to the project, as they were sent.
+    pub(crate) shared: Votes,
     /// Everyone's totals, as published by the project.
     pub(crate) scores: Scores,
+    /// The tag of a release newer than this build, once one is known.
+    pub(crate) update: Option<String>,
+    pub(crate) thumbnails: Arc<Thumbnails>,
 
     /// When the tab last changed, for the page's entrance.
     pub(crate) tab_changed: f64,
@@ -155,13 +169,18 @@ impl App {
     pub fn new(ctx: &egui::Context, draft: Option<PathBuf>) -> Self {
         let settings = Settings::load();
         let (tx, rx) = channel();
-        let gmod_dir = local::find_gmod(&settings.gmod_dir);
+        let gmod_dir = gmod::find(&settings.gmod_dir);
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("failed to start the async runtime");
+        let thumbnails = Arc::new(Thumbnails::new(rt.handle().clone(), Settings::thumbnails_dir()));
+        thumbnails.install(ctx);
+        rt.spawn_blocking(tidy_caches);
+        let (votes, shared) = vouches::load_votes();
         let mut app = Self {
-            rt: tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_all()
-                .build()
-                .expect("failed to start the async runtime"),
+            rt,
             tx,
             rx,
             client: SteamClient::new(Some(settings.api_key.clone())),
@@ -181,6 +200,7 @@ impl App {
             redo: Vec::new(),
             draft_view: DraftView::default(),
             picked: HashSet::new(),
+            draft_filter: String::new(),
             addons: HashMap::new(),
             pending_details: HashSet::new(),
             want_requirements: HashSet::new(),
@@ -195,12 +215,14 @@ impl App {
             show_dismissed: false,
             checking: false,
             trim_lua: true,
-            installed: gmod_dir.as_deref().map(local::installed_ids).unwrap_or_default(),
+            installed: gmod_dir.as_deref().map(gmod::installed).unwrap_or_default(),
             gmod_dir,
             archives: HashMap::new(),
-            votes: vouches::load_votes(),
-            unshared_votes: false,
+            votes,
+            shared,
             scores: Scores::new(),
+            update: None,
+            thumbnails,
             tab_changed: 0.0,
             shown_tab: None,
             last_selected: None,
@@ -210,6 +232,7 @@ impl App {
         };
         crate::ui::theme::apply(ctx, &app.settings.look);
         app.fetch_scores(ctx);
+        app.look_for_update(ctx);
         app.refresh_library();
         let reopen = app.settings.last_draft.clone().filter(|path| path.is_file());
         match draft {
@@ -356,6 +379,9 @@ impl App {
                 }
                 // Scores are a nicety; without them the app just shows none.
                 Msg::Scores(result) => self.scores = result.unwrap_or_default(),
+                Msg::LatestRelease(tag) => {
+                    self.update = tag.filter(|tag| updates::is_newer(tag, env!("CARGO_PKG_VERSION")));
+                }
             }
         }
     }
@@ -428,6 +454,14 @@ impl App {
         });
     }
 
+    /// Asks GitHub whether a newer version has been released. Not being
+    /// able to ask is not worth telling the user about.
+    fn look_for_update(&mut self, ctx: &egui::Context) {
+        if self.settings.check_updates {
+            self.spawn(ctx, async { Msg::LatestRelease(updates::latest(PROJECT_REPO).await.ok().flatten()) });
+        }
+    }
+
     // ---- Settings ----
 
     /// Call after changing how the app looks.
@@ -440,8 +474,8 @@ impl App {
         self.settings.api_key = self.key_input.trim().to_string();
         self.settings.gmod_dir = self.gmod_input.trim().to_string();
         self.client = SteamClient::new(Some(self.settings.api_key.clone()));
-        self.gmod_dir = local::find_gmod(&self.settings.gmod_dir);
-        self.installed = self.gmod_dir.as_deref().map(local::installed_ids).unwrap_or_default();
+        self.gmod_dir = gmod::find(&self.settings.gmod_dir);
+        self.installed = self.gmod_dir.as_deref().map(gmod::installed).unwrap_or_default();
         self.archives.clear();
         self.write_settings();
         self.key_status = KeyStatus::Unknown;
@@ -462,10 +496,22 @@ impl App {
     }
 }
 
+/// Deletes cached files that have outlived their use. Runs in the
+/// background when the app starts.
+fn tidy_caches() {
+    if let Some(dir) = Settings::thumbnails_dir() {
+        files::prune(&dir, thumbs::KEPT_ON_DISK, thumbs::DISK_BUDGET);
+    }
+    if let Some(dir) = Settings::discoveries_dir() {
+        files::prune(&dir, discover::DISCOVERY_KEPT, u64::MAX);
+    }
+}
+
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_messages(ctx);
         self.autosave(ctx);
+        self.thumbnails.trim(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

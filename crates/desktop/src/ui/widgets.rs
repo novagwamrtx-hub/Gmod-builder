@@ -4,8 +4,8 @@
 use eframe::egui::{self, Align, Layout, Margin, RichText, Sense, UiBuilder};
 use gmcb_core::{Addon, AddonStatus};
 
-use crate::format;
 use super::theme;
+use crate::{format, thumbs};
 
 pub const HEADER_HEIGHT: f32 = 30.0;
 
@@ -90,8 +90,8 @@ pub struct RowOptions<'a> {
     pub selected: bool,
     /// Shown in place of the tags, e.g. why the addon is suggested.
     pub note: Option<&'a str>,
-    /// The addon's vouch score, if it has one.
-    pub vouch: Option<u32>,
+    /// What builders have said about the addon, if anything.
+    pub vouch: Option<String>,
 }
 
 /// Thumbnail, title, stats and tags, with the caller's buttons on the right
@@ -122,8 +122,9 @@ pub fn addon_row(
                     }
                     AddonStatus::Ok => {
                         let mut stats = stats_line(addon, options.now);
-                        if let Some(score) = options.vouch {
-                            stats.push_str(&format!(" · vouch score {score}"));
+                        if let Some(vouch) = &options.vouch {
+                            stats.push_str(" · ");
+                            stats.push_str(vouch);
                         }
                         ui.add(egui::Label::new(theme::small(stats)).truncate());
                         match options.note {
@@ -195,20 +196,31 @@ pub fn stats_line(addon: &Addon, now: u64) -> String {
     stats
 }
 
+/// The addon's picture in a square of `side`, or a quiet square while it
+/// loads and when there is none.
 pub fn thumbnail(ui: &mut egui::Ui, addon: &Addon, side: f32) {
     if !theme::thumbnails() {
         return;
     }
-    let size = egui::vec2(side, side);
-    match &addon.preview_url {
-        Some(url) => {
-            let image = egui::Image::new(url.as_str())
-                .fit_to_exact_size(size)
-                .corner_radius(theme::radius());
-            ui.add_sized(size, image);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let texture = addon.preview_url.as_ref().and_then(|url| {
+        let image = egui::Image::new(thumbs::uri(url, side * ui.pixels_per_point()));
+        match image.load_for_size(ui.ctx(), rect.size()) {
+            Ok(egui::load::TexturePoll::Ready { texture }) => Some(texture),
+            _ => None,
+        }
+    });
+    match texture {
+        Some(texture) => {
+            // Whole and centred, whatever its shape.
+            let scale = (side / texture.size.x).min(side / texture.size.y);
+            let fitted = egui::Rect::from_center_size(rect.center(), texture.size * scale);
+            egui::Image::from_texture(texture).corner_radius(theme::radius()).paint_at(ui, fitted);
         }
         None => {
-            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
             ui.painter().rect_filled(rect, theme::radius(), theme::border());
         }
     }

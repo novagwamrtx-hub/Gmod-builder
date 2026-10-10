@@ -23,6 +23,7 @@ enum Bulk {
     All,
     Maybe,
     Remove,
+    Vouch,
 }
 
 enum Menu {
@@ -52,7 +53,7 @@ impl App {
 
         ui.horizontal(|ui| {
             let installed = self.installed.len();
-            let reserved = if installed > 0 { 330.0 } else { 100.0 };
+            let reserved = if self.installed.is_empty() { 100.0 } else { 330.0 };
             let width = (ui.available_width() - reserved).clamp(160.0, 460.0);
             let input = ui.add(
                 theme::text_field(&mut self.import_input)
@@ -115,6 +116,9 @@ impl App {
                         }
                     });
                 ui.label(theme::small("Show"));
+                ui.add(
+                    theme::text_field(&mut self.draft_filter).hint_text("Filter by name").desired_width(170.0),
+                );
             });
         });
 
@@ -135,15 +139,23 @@ impl App {
                 if ui.button(egui::RichText::new("Remove").color(theme::bad())).clicked() {
                     bulk = Some(Bulk::Remove);
                 }
+                let hint = "They worked well for you and you would use them again";
+                if self.settings.community && ui.button("Vouch for these").on_hover_text(hint).clicked() {
+                    bulk = Some(Bulk::Vouch);
+                }
             });
         }
 
         let rows = self.draft_rows(&addons);
+        if rows.is_empty() {
+            ui.label(theme::muted_text("Nothing in this draft has that in its name."));
+        }
         let heights: Vec<f32> = rows
             .iter()
             .map(|row| if matches!(row, Row::Header(..)) { HEADER_HEIGHT } else { widgets::row_height() })
             .collect();
-        let reorder = self.draft_view == DraftView::Order;
+        // Moving one place up a list with gaps in it would seem to do nothing.
+        let reorder = self.draft_view == DraftView::Order && self.draft_filter.trim().is_empty();
         let last = addons.len().saturating_sub(1);
         let now = format::now_unix();
         let mut action = None;
@@ -153,12 +165,12 @@ impl App {
             Row::Header(title, detail) => widgets::list_header(ui, title, detail),
             Row::Item(index) => {
                 let (index, addon) = (*index, &addons[*index]);
-                let options = RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_score(addon.id) };
+                let options = RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_note(addon.id) };
                 let clicked = widgets::addon_row(ui, addon, options, |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     let mut picked = self.picked.contains(&addon.id);
                     let tick = ui.checkbox(&mut picked, "");
-                    if tick.on_hover_text("Select, to remove or move several at once").changed() {
+                    if tick.on_hover_text("Select, to act on several at once").changed() {
                         ticked = Some(addon.id);
                     }
                     if ui.button("Remove").clicked() {
@@ -181,7 +193,7 @@ impl App {
             }
             Row::Maybe(id) => {
                 let addon = self.addon_or_stand_in(*id);
-                let options = RowOptions { now, selected: self.selected == Some(*id), note: None, vouch: self.vouch_score(*id) };
+                let options = RowOptions { now, selected: self.selected == Some(*id), note: None, vouch: self.vouch_note(*id) };
                 let clicked = widgets::addon_row(ui, &addon, options, |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     if ui.button("Drop").on_hover_text("Take off the maybe pile").clicked() {
@@ -207,9 +219,25 @@ impl App {
         }
         match bulk {
             Some(Bulk::Clear) => self.picked.clear(),
-            Some(Bulk::All) => self.picked = self.draft.ids.iter().copied().collect(),
+            Some(Bulk::All) => {
+                let listed = rows.iter().filter_map(|row| match row {
+                    Row::Item(index) => Some(addons[*index].id),
+                    _ => None,
+                });
+                self.picked = listed.collect();
+            }
             Some(Bulk::Maybe) => self.clear_picked(&ctx, true),
             Some(Bulk::Remove) => self.clear_picked(&ctx, false),
+            Some(Bulk::Vouch) => {
+                let available = addons.iter().filter(|a| a.status == AddonStatus::Ok);
+                let ids: Vec<u64> = available.map(|a| a.id).filter(|id| self.picked.contains(id)).collect();
+                self.picked.clear();
+                self.vote_on(&ids, Some(true));
+                self.info(format!(
+                    "Vouched for {} addons. Share your vouches from Settings to count them for everyone",
+                    ids.len()
+                ));
+            }
             None => {}
         }
         self.apply(&ctx, action);
@@ -299,7 +327,9 @@ impl App {
 
     /// The list for the chosen view, with the maybe pile after it.
     fn draft_rows(&self, addons: &[Addon]) -> Vec<Row> {
-        let mut order: Vec<usize> = (0..addons.len()).collect();
+        let wanted = self.draft_filter.trim().to_lowercase();
+        let listed = |title: String| wanted.is_empty() || title.to_lowercase().contains(&wanted);
+        let mut order: Vec<usize> = (0..addons.len()).filter(|&i| listed(addons[i].display_title())).collect();
         let mut rows = Vec::new();
         match self.draft_view {
             DraftView::Order => rows.extend(order.into_iter().map(Row::Item)),
@@ -329,10 +359,11 @@ impl App {
                 group("Unavailable", order.iter().copied().filter(|i| !ok(i)).collect());
             }
         }
-        if !self.draft.maybe.is_empty() {
-            let detail = format!("{} · not part of the collection", self.draft.maybe.len());
+        let maybe: Vec<u64> = self.draft.maybe.iter().copied().filter(|&id| listed(self.title_of(id))).collect();
+        if !maybe.is_empty() {
+            let detail = format!("{} · not part of the collection", maybe.len());
             rows.push(Row::Header("Maybe".to_string(), detail));
-            rows.extend(self.draft.maybe.iter().copied().map(Row::Maybe));
+            rows.extend(maybe.into_iter().map(Row::Maybe));
         }
         rows
     }

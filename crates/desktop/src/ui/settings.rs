@@ -1,10 +1,11 @@
-//! Settings: the Steam key, how the app looks and behaves, vouches, and
-//! where Garry's Mod is on this computer.
+//! Settings: the Steam key, how the app looks and behaves, vouches, where
+//! Garry's Mod is on this computer, and what this app is.
 
 use eframe::egui::{self, Color32, Sense, Stroke};
+use gmcb_core::updates;
 
 use super::theme::{self, Density, Look, Palette, Rgb, THEMES};
-use crate::app::{App, KeyStatus, COMMUNITY_REPO};
+use crate::app::{App, KeyStatus, PROJECT_REPO};
 use crate::settings::Settings;
 
 const API_KEY_PAGE: &str = "https://steamcommunity.com/dev/apikey";
@@ -112,7 +113,7 @@ impl App {
             ui.horizontal(|ui| {
                 ui.add(
                     theme::text_field(&mut self.gmod_input)
-                        .hint_text("Only if it was not found: path of the garrysmod folder")
+                        .hint_text("Only if it was not found: the GarrysMod folder in your Steam library")
                         .desired_width(460.0),
                 );
                 if ui.button("Browse…").clicked() {
@@ -124,6 +125,9 @@ impl App {
                 save |= ui.button("Save").clicked();
             });
         });
+
+        ui.add_space(4.0);
+        self.about_card(ui);
 
         if save {
             self.save_settings(&ctx);
@@ -322,13 +326,16 @@ impl App {
     pub(crate) fn community_card(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let mut share = false;
+        let mut start_over = false;
         let mut toggled = false;
         theme::card(ui, |ui| {
             ui.heading("Vouches");
             ui.label(theme::muted_text(
-                "Vouch for addons and collections that worked well for you, and warn about ones that \
-                 did not, from an addon's details. Enough builders agreeing gives it a vouch score \
-                 from 0 to 100, which counts for more the more builders are behind it.",
+                "Builders telling each other what works. Click the name of an addon and press Vouch \
+                 if it worked well in a collection of yours, or Warn if it was broken or clashed \
+                 with other addons. In Draft you can tick several addons and vouch for them \
+                 together. Once three builders have voted on something it gets a vouch score from \
+                 0 to 100, which counts for more the more builders are behind it.",
             ));
             toggled = ui.checkbox(&mut self.settings.community, "Show vouch scores and buttons").changed();
             if !self.settings.community {
@@ -336,31 +343,70 @@ impl App {
             }
             let vouched = self.votes.values().filter(|vouch| **vouch).count();
             let warned = self.votes.len() - vouched;
-            ui.label(theme::small(format!(
-                "On this computer: {vouched} vouched for, {warned} warned about."
-            )));
-            if COMMUNITY_REPO.is_empty() {
-                ui.label(theme::small(
-                    "Sharing opens once the project has its page on GitHub. Until then your votes stay \
-                     on this computer and will be ready to send.",
-                ));
-                return;
+            let (next, waiting) = self.unshared_votes();
+            let mut mine = format!("On this computer: {vouched} vouched for, {warned} warned about.");
+            if waiting > 0 {
+                mine.push_str(&format!(" {waiting} not shared yet."));
             }
+            ui.label(theme::small(mine));
             ui.horizontal(|ui| {
-                let label = if self.unshared_votes { "Share my vouches" } else { "Share my vouches again" };
-                share = ui.add_enabled(!self.votes.is_empty(), theme::primary_button(label)).clicked();
-                ui.label(theme::small(format!(
-                    "Opens a filled-in page on GitHub for you to send (needs a GitHub account, which \
-                     is what stops one person voting many times). {} builders' scores loaded.",
-                    self.scores.len()
-                )));
+                let label = match next {
+                    0 => "Nothing new to share".to_string(),
+                    next if next < waiting => format!("Share the next {next}"),
+                    next => format!("Share {next}"),
+                };
+                share = ui.add_enabled(next > 0, theme::primary_button(&label)).clicked();
+                if !self.shared.is_empty() {
+                    let hint = "Forgets what has been shared, so that everything is sent again. For \
+                                when you closed the GitHub page without pressing Create.";
+                    start_over = ui.button("Start over").on_hover_text(hint).clicked();
+                }
             });
+            ui.label(theme::small(format!(
+                "Sharing opens a filled-in page on GitHub: press Create there to send it. It needs a \
+                 GitHub account, which is what stops one person voting many times, and what you \
+                 send is public under that account. Scores are loaded for {} addons and collections.",
+                self.scores.len()
+            )));
         });
         if toggled {
             self.write_settings();
         }
         if share {
             self.share_votes(&ctx);
+        }
+        if start_over {
+            self.share_from_scratch();
+        }
+    }
+
+    fn about_card(&mut self, ui: &mut egui::Ui) {
+        let mut toggled = false;
+        theme::card(ui, |ui| {
+            ui.heading("About");
+            ui.horizontal_wrapped(|ui| {
+                ui.label(theme::muted_text(concat!("GMod Collection Builder ", env!("CARGO_PKG_VERSION"))));
+                if let Some(tag) = &self.update {
+                    let newer = format!("Version {} is out.", tag.trim_start_matches(['v', 'V']));
+                    ui.colored_label(theme::good(), newer);
+                    ui.hyperlink_to("Download it", updates::release_page(PROJECT_REPO));
+                }
+            });
+            let label = "Look for a newer version when the app starts";
+            toggled = ui.checkbox(&mut self.settings.check_updates, label).changed();
+            ui.horizontal_wrapped(|ui| {
+                let project = format!("https://github.com/{PROJECT_REPO}");
+                ui.hyperlink_to("Project page", &project);
+                ui.hyperlink_to("Report a problem", format!("{project}/issues"));
+                ui.hyperlink_to("All versions", format!("{project}/releases"));
+            });
+            ui.label(theme::small(
+                "Free and open source, under the Apache 2.0 licence. Made by fans: not affiliated \
+                 with Valve or Facepunch Studios.",
+            ));
+        });
+        if toggled {
+            self.write_settings();
         }
     }
 }

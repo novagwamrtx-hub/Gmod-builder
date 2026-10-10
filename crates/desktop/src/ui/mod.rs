@@ -15,8 +15,9 @@ pub mod widgets;
 use std::time::Duration;
 
 use eframe::egui::{self, Align, Key, Layout, Margin, Modifiers, RichText};
+use gmcb_core::updates;
 
-use crate::app::{App, Tab};
+use crate::app::{App, Tab, PROJECT_REPO};
 
 const STATUS_SECONDS: u64 = 6;
 
@@ -61,6 +62,11 @@ impl App {
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     tab_button(self, ui, Tab::Settings, "Settings");
+                    if let Some(tag) = &self.update {
+                        let label = format!("Version {} is out", tag.trim_start_matches(['v', 'V']));
+                        ui.hyperlink_to(label, updates::release_page(PROJECT_REPO))
+                            .on_hover_text("Opens the page to download it from");
+                    }
                 });
                 // A line under the open tab, which slides when the tab changes.
                 if let Some(rect) = current {
