@@ -1,52 +1,91 @@
 name: Vouches
 
-# Someone pressed "Share my vouches" in the app, which opens an issue titled
-# "Vouches" with their votes in the body. Fold them into community/ledger.json
-# (one set of votes per GitHub account), republish community/scores.json for
-# the app to download, and close the issue.
+# "Share" under Settings > Vouches in the app opens an issue titled "Vouches"
+# with the builder's verdicts in its body. This counts every such issue that
+# is open into community/ledger.json (one set of verdicts per GitHub account),
+# republishes community/scores.json for the app to download, and closes the
+# issues it counted.
 
 on:
   issues:
     types: [opened]
+  # To count by hand, for instance after a run failed.
+  workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
 
-# One at a time, so two submissions cannot overwrite each other's commit.
-concurrency: vouches
+# One run at a time, so that two cannot overwrite each other's commit. A run
+# that is waiting gives way to a newer one, and nothing is lost by that: every
+# run counts all the issues that are open, not only the one that started it.
+concurrency:
+  group: vouches
+  cancel-in-progress: false
 
 jobs:
-  merge:
-    if: github.event.issue.title == 'Vouches'
+  count:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      # The issue is text from a stranger: it reaches the tool as a file and
-      # is never put on a command line.
-      - name: Merge
-        env:
-          BODY: ${{ github.event.issue.body }}
-          ACCOUNT: ${{ github.event.issue.user.login }}
+      # Issues are text from strangers. They reach the tool as a file, and
+      # nothing from them is ever put on a command line.
+      - name: Fetch the open issues
+        id: issues
         run: |
-          printf '%s' "$BODY" > "$RUNNER_TEMP/body.txt"
-          count=$(cargo run --quiet -p gmcb-core --no-default-features --example merge_vouches -- "$ACCOUNT" "$RUNNER_TEMP/body.txt" community)
-          echo "COUNT=$count" >> "$GITHUB_ENV"
+          gh api --paginate "repos/$GH_REPO/issues?state=open&per_page=100" > "$RUNNER_TEMP/issues.json"
+          # A quick look, to spare a build when the issue is about something
+          # else. The tool decides what really is a submission.
+          if grep -q 'Vouches' "$RUNNER_TEMP/issues.json"; then
+            echo "waiting=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.issues.outputs.waiting == 'yes'
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.issues.outputs.waiting == 'yes'
+      - uses: Swatinem/rust-cache@v2
+        if: steps.issues.outputs.waiting == 'yes'
+
+      - name: Count
+        if: steps.issues.outputs.waiting == 'yes'
+        run: |
+          cargo run --quiet --locked -p gmcb-core --no-default-features --example merge_vouches -- \
+            "$RUNNER_TEMP/issues.json" community > "$RUNNER_TEMP/counted.tsv"
+          cat "$RUNNER_TEMP/counted.tsv"
+
       - name: Publish
+        if: steps.issues.outputs.waiting == 'yes'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add community
-          git diff --cached --quiet || git commit -m "Vouches from issue #${{ github.event.issue.number }}"
-          git push
-      - name: Close the issue
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ "$COUNT" = "0" ]; then
-            message="No votes found in this issue, so nothing was counted. Use \"Share my vouches\" in the app's Settings to fill it in."
-          else
-            message="Counted $COUNT votes. Thank you! Sharing again later updates your votes; it never counts them twice."
+          if git diff --cached --quiet; then
+            exit 0
           fi
-          gh issue close "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --comment "$message"
+          git commit --quiet -m "Count shared vouches"
+          # Something else may have been pushed while this ran.
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            git pull --rebase
+          done
+          exit 1
+
+      # Only after the counts are published: an issue left open is counted
+      # again by the next run, which changes nothing, while one closed too
+      # soon would be lost.
+      - name: Answer and close
+        if: steps.issues.outputs.waiting == 'yes'
+        run: |
+          while IFS=$'\t' read -r number verdicts; do
+            if [ "$verdicts" = "0" ]; then
+              message='No verdicts were found in this issue, so nothing was counted. To share yours, use Settings > Vouches > Share in the app and press Create on the page it opens, without changing the text.'
+            else
+              message="Counted $verdicts. Thank you! Sharing again later changes your verdicts; it never counts them twice."
+            fi
+            gh issue close "$number" --comment "$message"
+          done < "$RUNNER_TEMP/counted.tsv"

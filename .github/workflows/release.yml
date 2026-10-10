@@ -1,5 +1,10 @@
 name: Release
 
+# Pushing a tag such as v0.2.0 builds the app and the extension and publishes
+# them as a release of that name. The tag must be the version in Cargo.toml
+# and in the extension's manifest: the app compares the two to tell whether
+# a newer version is out.
+
 on:
   push:
     tags: ["v*"]
@@ -7,53 +12,81 @@ on:
 permissions:
   contents: write
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  test:
+  prepare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: The tag is the version
+        run: |
+          app="v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "gmcb-desktop") | .version')"
+          extension="v$(jq -r .version crates/extension/manifest.json)"
+          echo "tag $GITHUB_REF_NAME, app $app, extension $extension"
+          test "$app" = "$GITHUB_REF_NAME"
+          test "$extension" = "$GITHUB_REF_NAME"
       # The desktop crate needs GUI system libraries; core and extension do not.
-      - run: cargo test -p gmcb-core -p gmcb-extension
+      - run: cargo test --locked -p gmcb-core -p gmcb-extension
+      # A draft until the downloads are attached, so that nobody is sent to
+      # a release with nothing in it.
+      - name: Draft the release
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag --draft
 
-  desktop:
-    needs: test
+  windows:
+    needs: prepare
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release -p gmcb-desktop
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: target/release/gmod-collection-builder.exe
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p gmcb-desktop
+      - run: gh release upload "$GITHUB_REF_NAME" target/release/gmod-collection-builder.exe --clobber
 
-  desktop-linux:
-    needs: test
+  linux:
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      # Windowing, file dialogs and clipboard link against these.
-      - run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev
-      - run: cargo build --release -p gmcb-desktop
+      - uses: Swatinem/rust-cache@v2
+      # Windowing, file dialogs and the clipboard link against these.
+      - run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+      - run: cargo build --release --locked -p gmcb-desktop
       - run: tar -czf gmod-collection-builder-linux-x86_64.tar.gz -C target/release gmod-collection-builder
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: gmod-collection-builder-linux-x86_64.tar.gz
+      - run: gh release upload "$GITHUB_REF_NAME" gmod-collection-builder-linux-x86_64.tar.gz --clobber
 
   extension:
-    needs: test
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
       - run: cargo install wasm-pack --locked
       - run: wasm-pack build crates/extension --target web --release --no-typescript
       - name: Package
         working-directory: crates/extension
-        run: zip gmod-collection-builder-extension.zip manifest.json loader.js pkg/gmcb_extension.js pkg/gmcb_extension_bg.wasm
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: crates/extension/gmod-collection-builder-extension.zip
+        run: zip gmod-collection-builder-extension.zip manifest.json loader.js icons/*.png pkg/gmcb_extension.js pkg/gmcb_extension_bg.wasm
+      - run: gh release upload "$GITHUB_REF_NAME" crates/extension/gmod-collection-builder-extension.zip --clobber
+
+  # The Linux build is the least travelled of the three: if it fails, the
+  # release still goes out without it.
+  publish:
+    needs: [windows, linux, extension]
+    if: ${{ !cancelled() && needs.windows.result == 'success' && needs.extension.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
