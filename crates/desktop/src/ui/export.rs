@@ -12,8 +12,7 @@ use crate::app::App;
 /// Windows refuses to open much longer URLs; beyond this the ids travel by
 /// clipboard instead of in the link.
 const MAX_HANDOFF_URL: usize = 2000;
-const COLLECTIONS_PAGE: &str =
-    "https://steamcommunity.com/workshop/browse/?appid=4000&section=collections";
+const COLLECTIONS_PAGE: &str = "https://steamcommunity.com/workshop/browse/?appid=4000&section=collections";
 
 impl App {
     pub(crate) fn export_tab(&mut self, ui: &mut egui::Ui) {
@@ -105,8 +104,7 @@ impl App {
         egui::Grid::new("server").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
             if ui.button("Save workshop.lua…").clicked() {
                 self.load_archives();
-                let dialog =
-                    rfd::FileDialog::new().add_filter("Lua", &["lua"]).set_file_name("workshop.lua");
+                let dialog = rfd::FileDialog::new().add_filter("Lua", &["lua"]).set_file_name("workshop.lua");
                 if let Some(path) = dialog.save_file() {
                     let none = HashMap::new();
                     let archives = if self.trim_lua { &self.archives } else { &none };
@@ -123,8 +121,7 @@ impl App {
             ui.end_row();
 
             ui.label("");
-            let installed =
-                self.draft.ids.iter().filter(|&&id| self.installed.has_files(id)).count();
+            let installed = self.draft.ids.iter().filter(|&&id| self.installed.has_files(id)).count();
             let hint = format!(
                 "Leaves out script-only addons, which players get from the server anyway, and sends \
                  each map only while the server is on it. Works for the {installed} of {} addons \

@@ -19,11 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     let report = analysis::analyze(&addons, now, &analysis::Options::default());
 
-    println!(
-        "{} addons, {:.1} MB",
-        report.addon_count,
-        report.total_size_bytes as f64 / 1_048_576.0
-    );
+    println!("{} addons, {:.1} MB", report.addon_count, report.total_size_bytes as f64 / 1_048_576.0);
     for addon in addons.iter().take(5) {
         println!("  {} [{}]", addon.display_title(), addon.tags.join(", "));
     }

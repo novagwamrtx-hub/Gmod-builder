@@ -165,12 +165,14 @@ pub fn installed(gmod: &Path) -> Installed {
     // From `<library>/steamapps/common/GarrysMod/garrysmod` up to `steamapps`.
     let Some(steamapps) = gmod.ancestors().nth(3) else { return found };
     for folder in entries(&steamapps.join(format!("workshop/content/{GMOD_APPID}"))) {
-        let Some(id) = folder.file_name().and_then(|name| name.to_str()).and_then(|id| id.parse().ok()) else {
+        let Some(id) = folder.file_name().and_then(|name| name.to_str()).and_then(|id| id.parse().ok())
+        else {
             continue;
         };
         let downloads = entries(&folder);
         // Steam's own copy is the current one, whatever the game unpacked earlier.
-        if let Some(archive) = downloads.iter().find(|file| file.extension().is_some_and(|ext| ext == "gma")) {
+        if let Some(archive) = downloads.iter().find(|file| file.extension().is_some_and(|ext| ext == "gma"))
+        {
             found.files.insert(id, archive.clone());
         } else if !downloads.is_empty() && !found.files.contains_key(&id) {
             found.packed.insert(id);
@@ -180,7 +182,9 @@ pub fn installed(gmod: &Path) -> Installed {
 }
 
 fn entries(dir: &Path) -> Vec<PathBuf> {
-    std::fs::read_dir(dir).map(|entries| entries.flatten().map(|entry| entry.path()).collect()).unwrap_or_default()
+    std::fs::read_dir(dir)
+        .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

@@ -66,8 +66,7 @@ pub fn count_members(collections: &[Vec<u64>]) -> (usize, Vec<(u64, u32)>) {
             *counts.entry(id).or_default() += 1;
         }
     }
-    let mut counts: Vec<(u64, u32)> =
-        counts.into_iter().filter(|&(_, n)| n >= MIN_APPEARANCES).collect();
+    let mut counts: Vec<(u64, u32)> = counts.into_iter().filter(|&(_, n)| n >= MIN_APPEARANCES).collect();
     counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     (sample_size, counts)
 }
@@ -108,8 +107,8 @@ mod tests {
             vec![1, 1, 2, 3, 4, 5],
             vec![1, 2, 3, 4, 6],
             vec![1, 2, 7, 8, 9],
-            vec![1, 2],                 // too small
-            (0..500).collect(),         // someone's whole subscription list
+            vec![1, 2],         // too small
+            (0..500).collect(), // someone's whole subscription list
         ];
         let (sample_size, counts) = count_members(&collections);
         assert_eq!(sample_size, 3);
@@ -120,11 +119,7 @@ mod tests {
     fn theme_specific_addons_beat_ones_that_are_everywhere() {
         // Figures from a real "zombie survival" sample of 269 collections out
         // of 2.2 million: an admin mod, a zombie NPC pack, a vehicle base.
-        let ranked = rank(
-            269,
-            2_204_113,
-            &[(1, 60, 359_174), (2, 36, 32_297), (3, 51, 545_178)],
-        );
+        let ranked = rank(269, 2_204_113, &[(1, 60, 359_174), (2, 36, 32_297), (3, 51, 545_178)]);
         let order: Vec<u64> = ranked.iter().map(|s| s.id).collect();
         assert_eq!(order, vec![2, 1, 3]);
     }

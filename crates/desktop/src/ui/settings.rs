@@ -219,7 +219,9 @@ impl App {
             egui::Grid::new("look-grid").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
                 ui.label(theme::muted_text("Size"));
                 let mut percent = (look.scale * 100.0).round();
-                let size = ui.add(egui::Slider::new(&mut percent, 80.0..=150.0).suffix("%").step_by(5.0).fixed_decimals(0));
+                let size = ui.add(
+                    egui::Slider::new(&mut percent, 80.0..=150.0).suffix("%").step_by(5.0).fixed_decimals(0),
+                );
                 look.scale = percent / 100.0;
                 resized |= size.drag_stopped() || (size.changed() && !size.dragged());
                 ui.end_row();
@@ -432,7 +434,9 @@ fn theme_swatch(ui: &mut egui::Ui, name: &str, palette: Palette, selected: bool)
         egui::FontId::proportional(13.5),
         rgb(palette.text),
     );
-    for (i, dot) in [palette.accent, palette.good, palette.warn, palette.bad, palette.muted].into_iter().enumerate() {
+    for (i, dot) in
+        [palette.accent, palette.good, palette.warn, palette.bad, palette.muted].into_iter().enumerate()
+    {
         let centre = rect.left_bottom() + egui::vec2(18.0 + 16.0 * i as f32, -14.0);
         painter.circle_filled(centre, 5.0, rgb(dot));
     }

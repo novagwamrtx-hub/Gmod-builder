@@ -32,10 +32,7 @@ pub fn virtual_list(
         let mut y = 0.0;
         for (i, &height) in heights.iter().enumerate() {
             if y + height >= viewport.min.y && y <= viewport.max.y {
-                let rect = egui::Rect::from_min_size(
-                    origin + egui::vec2(0.0, y),
-                    egui::vec2(width, height),
-                );
+                let rect = egui::Rect::from_min_size(origin + egui::vec2(0.0, y), egui::vec2(width, height));
                 let mut row = ui.new_child(UiBuilder::new().max_rect(rect).id_salt(i));
                 add_row(&mut row, i);
             }
@@ -129,7 +126,10 @@ pub fn addon_row(
                         ui.add(egui::Label::new(theme::small(stats)).truncate());
                         match options.note {
                             Some(note) => {
-                                ui.add(egui::Label::new(RichText::new(note).small().color(theme::accent())).truncate());
+                                ui.add(
+                                    egui::Label::new(RichText::new(note).small().color(theme::accent()))
+                                        .truncate(),
+                                );
                             }
                             None => {
                                 ui.horizontal(|ui| {
@@ -165,7 +165,8 @@ pub fn collection_row(ui: &mut egui::Ui, collection: &Addon, buttons: impl FnOnc
             thumbnail(ui, collection, theme::thumbnail_size());
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
-                let title = RichText::new(collection.display_title()).size(15.0).strong().color(theme::text());
+                let title =
+                    RichText::new(collection.display_title()).size(15.0).strong().color(theme::text());
                 ui.add(egui::Label::new(title).truncate());
                 let mut stats = format!(
                     "{} addons · {} favorites",
@@ -184,11 +185,8 @@ pub fn collection_row(ui: &mut egui::Ui, collection: &Addon, buttons: impl FnOnc
 }
 
 pub fn stats_line(addon: &Addon, now: u64) -> String {
-    let mut stats = format!(
-        "{} · {} subscribers",
-        format::size(addon.size_bytes),
-        format::count(addon.subscriptions)
-    );
+    let mut stats =
+        format!("{} · {} subscribers", format::size(addon.size_bytes), format::count(addon.subscriptions));
     if let Some(rating) = addon.rating() {
         stats.push_str(&format!(" · {rating}% liked"));
     }

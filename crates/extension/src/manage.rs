@@ -140,7 +140,10 @@ impl Panel {
             panel.ids.set_value(&lines.join("\n"));
             panel.from_basket.set(false);
             panel.refresh();
-            panel.say(&format!("Loaded your {} subscribed items. Copy them from the box to import them in the app.", lines.len()));
+            panel.say(&format!(
+                "Loaded your {} subscribed items. Copy them from the box to import them in the app.",
+                lines.len()
+            ));
         });
 
         let window = self.window.clone();
@@ -201,11 +204,8 @@ impl Panel {
     }
 
     async fn run(self, job: Job) {
-        let cookies = self
-            .document
-            .dyn_ref::<HtmlDocument>()
-            .and_then(|d| d.cookie().ok())
-            .unwrap_or_default();
+        let cookies =
+            self.document.dyn_ref::<HtmlDocument>().and_then(|d| d.cookie().ok()).unwrap_or_default();
         let Some(session) = logic::session_id(&cookies) else {
             self.say("Could not find your Steam session. Are you logged in?");
             return;

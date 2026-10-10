@@ -4,11 +4,11 @@
 use eframe::egui::{self, Align, Layout, RichText};
 use gmcb_core::{Addon, AddonStatus, Sort};
 
-use crate::app::{App, Tab};
-use crate::format;
-use super::RowAction;
 use super::theme;
 use super::widgets::{self, RowOptions};
+use super::RowAction;
+use crate::app::{App, Tab};
+use crate::format;
 
 /// GMod Workshop tags, as (tag, label).
 const TYPE_TAGS: [(&str, &str); 10] = [
@@ -74,17 +74,14 @@ impl App {
             } else {
                 "Search the Workshop"
             };
-            let text = ui.add(
-                theme::text_field(&mut self.search.text).hint_text(hint).desired_width(width),
-            );
+            let text = ui.add(theme::text_field(&mut self.search.text).hint_text(hint).desired_width(width));
             submit |= text.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             egui::ComboBox::from_id_salt("sort")
                 .width(150.0)
                 .selected_text(self.search.sort.label())
                 .show_ui(ui, |ui| {
                     for sort in Sort::ALL {
-                        submit |=
-                            ui.selectable_value(&mut self.search.sort, sort, sort.label()).changed();
+                        submit |= ui.selectable_value(&mut self.search.sort, sort, sort.label()).changed();
                     }
                 });
             submit |= ui.add(theme::primary_button("Search")).clicked();
@@ -164,8 +161,12 @@ impl App {
                     }
                 });
             } else {
-                let options =
-                    RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_note(addon.id) };
+                let options = RowOptions {
+                    now,
+                    selected: self.selected == Some(addon.id),
+                    note: None,
+                    vouch: self.vouch_note(addon.id),
+                };
                 if widgets::addon_row(ui, addon, options, |ui| {
                     self.offer_buttons(ui, addon.id, &mut action);
                 }) {
@@ -241,10 +242,8 @@ impl App {
         let ctx = ui.ctx().clone();
         let Some(browse) = &self.search.browse else { return };
         let addons: Vec<Addon> = browse.ids.iter().map(|&id| self.addon_or_stand_in(id)).collect();
-        let missing = addons
-            .iter()
-            .filter(|a| a.status == AddonStatus::Ok && !self.draft.contains(a.id))
-            .count();
+        let missing =
+            addons.iter().filter(|a| a.status == AddonStatus::Ok && !self.draft.contains(a.id)).count();
 
         let mut back = false;
         let mut add_all = false;
@@ -271,7 +270,12 @@ impl App {
         let heights = vec![widgets::row_height(); addons.len()];
         widgets::virtual_list(ui, "browse", &heights, |ui, row| {
             let addon = &addons[row];
-            let options = RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_note(addon.id) };
+            let options = RowOptions {
+                now,
+                selected: self.selected == Some(addon.id),
+                note: None,
+                vouch: self.vouch_note(addon.id),
+            };
             if widgets::addon_row(ui, addon, options, |ui| {
                 self.offer_buttons(ui, addon.id, &mut action);
             }) {

@@ -31,11 +31,8 @@ fn render_at(app: &mut App, tab: Tab, name: &str, size: [f32; 2]) {
     app.tab = tab;
     let look = app.settings.look.clone();
     let thumbnails = app.thumbnails.clone();
-    let mut harness = Harness::builder()
-        .with_size(size)
-        .with_max_steps(40)
-        .wgpu()
-        .build_ui(|ui| app.show(ui));
+    let mut harness =
+        Harness::builder().with_size(size).with_max_steps(40).wgpu().build_ui(|ui| app.show(ui));
     thumbnails.install(&harness.ctx);
     theme::apply(&harness.ctx, &look);
     // Thumbnails arrive over the network; give them a few rounds.
@@ -115,8 +112,12 @@ fn render_previews() {
     app.load_related(&ctx, top, RelatedKind::BuiltFor);
     settle(&mut app, &ctx);
     let built_for = app.related[&top].built_for.clone().unwrap_or_default();
-    println!("built for {}: {} addons, e.g. {:?}", app.title_of(top), built_for.len(),
-        built_for.iter().take(3).map(|&id| app.title_of(id)).collect::<Vec<_>>());
+    println!(
+        "built for {}: {} addons, e.g. {:?}",
+        app.title_of(top),
+        built_for.len(),
+        built_for.iter().take(3).map(|&id| app.title_of(id)).collect::<Vec<_>>()
+    );
     render(&mut app, Tab::Discover, "discover-detail");
     app.selected = None;
 
@@ -185,20 +186,24 @@ fn render_previews() {
         app.run_check(&ctx, true);
         settle(&mut app, &ctx);
         let report = app.report.clone().unwrap();
-        println!("installed: {} addons, files of {} compared, {} findings",
-            report.addon_count, report.files_compared, report.findings.len());
-        let conflicts = report
-            .findings
-            .iter()
-            .filter(|f| matches!(f, gmcb_core::analysis::Finding::FileConflict { .. }));
+        println!(
+            "installed: {} addons, files of {} compared, {} findings",
+            report.addon_count,
+            report.files_compared,
+            report.findings.len()
+        );
+        let conflicts =
+            report.findings.iter().filter(|f| matches!(f, gmcb_core::analysis::Finding::FileConflict { .. }));
         for finding in conflicts.take(8) {
             println!("  {:?}: {}", finding.severity(), finding.message());
         }
         let lua = gmcb_core::export::workshop_lua(&app.draft_addons(), &app.archives);
-        println!("workshop.lua: {} sent, {} maps on demand, {} script-only left out",
+        println!(
+            "workshop.lua: {} sent, {} maps on demand, {} script-only left out",
             lua.matches("\nresource.AddWorkshop").count(),
             lua.matches("\n    [\"").count(),
-            lua.matches("\n--   ").count());
+            lua.matches("\n--   ").count()
+        );
         render(&mut app, Tab::Check, "check-installed");
     }
 
@@ -210,8 +215,7 @@ fn render_previews() {
     let file = std::env::temp_dir().join("gmcb-preview-draft.json");
     app.draft_path = Some(file.clone());
     app.save_now();
-    let written: CollectionDraft =
-        serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+    let written: CollectionDraft = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
     let before = app.draft.clone();
     app.new_draft();
     let blank = app.draft.clone();
@@ -238,6 +242,7 @@ fn render_previews() {
         let file = format!("theme-{}", name.to_lowercase().replace(' ', "-"));
         render(&mut app, if i % 2 == 0 { Tab::Discover } else { Tab::Draft }, &file);
     }
-    app.settings.look = theme::Look { thumbnails: false, animations: false, rounding: 0, scale: 1.25, ..Default::default() };
+    app.settings.look =
+        theme::Look { thumbnails: false, animations: false, rounding: 0, scale: 1.25, ..Default::default() };
     render(&mut app, Tab::Discover, "look-plain");
 }

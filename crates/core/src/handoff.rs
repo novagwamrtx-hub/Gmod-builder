@@ -18,10 +18,7 @@ pub fn manage_url(collection_id: u64, ids: &[u64]) -> String {
 /// Reads the ids back out of `location.hash` (with or without the `#`).
 /// `None` if the fragment is not ours or holds anything but ids.
 pub fn decode_fragment(fragment: &str) -> Option<Vec<u64>> {
-    let list = fragment
-        .trim_start_matches('#')
-        .strip_prefix(FRAGMENT_KEY)?
-        .strip_prefix('=')?;
+    let list = fragment.trim_start_matches('#').strip_prefix(FRAGMENT_KEY)?.strip_prefix('=')?;
     if list.is_empty() {
         return Some(Vec::new());
     }

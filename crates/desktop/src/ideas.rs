@@ -320,9 +320,7 @@ pub fn matching(filter: &str) -> Vec<(&'static str, Vec<&'static Idea>)> {
         .map(|(category, ideas)| {
             let hits: Vec<&Idea> = ideas
                 .iter()
-                .filter(|idea| {
-                    idea.name.to_lowercase().contains(&filter) || idea.search.contains(&filter)
-                })
+                .filter(|idea| idea.name.to_lowercase().contains(&filter) || idea.search.contains(&filter))
                 .collect();
             (*category, hits)
         })

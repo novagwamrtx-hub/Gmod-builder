@@ -44,7 +44,8 @@ fn run(issues: &Path, dir: &Path) -> Result<Vec<(u64, usize)>, String> {
     let counted = community::count(&mut ledger, &issues);
 
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let write = |name: &str, text: String| std::fs::write(dir.join(name), text + "\n").map_err(|e| e.to_string());
+    let write =
+        |name: &str, text: String| std::fs::write(dir.join(name), text + "\n").map_err(|e| e.to_string());
     write("ledger.json", serde_json::to_string_pretty(&ledger).map_err(|e| e.to_string())?)?;
     write("scores.json", serde_json::to_string(&community::tally(&ledger)).map_err(|e| e.to_string())?)?;
     Ok(counted)

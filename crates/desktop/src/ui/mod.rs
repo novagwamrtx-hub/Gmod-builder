@@ -120,7 +120,8 @@ impl App {
             self.tab_changed = now;
         }
         let time = f64::from(theme::animation_time()) * 1.6;
-        let progress = if time > 0.0 { ((now - self.tab_changed) / time).clamp(0.0, 1.0) as f32 } else { 1.0 };
+        let progress =
+            if time > 0.0 { ((now - self.tab_changed) / time).clamp(0.0, 1.0) as f32 } else { 1.0 };
         let arrived = 1.0 - (1.0 - progress).powi(3);
         if progress < 1.0 {
             ui.ctx().request_repaint();

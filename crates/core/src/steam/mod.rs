@@ -266,12 +266,7 @@ impl SteamClient {
     /// collections matching `theme` (and containing `anchor`, if given),
     /// counts their members, and ranks them by how much more common they are
     /// there than across all collections. Needs a key; costs about 85 requests.
-    pub async fn discover(
-        &self,
-        theme: &str,
-        anchor: Option<u64>,
-        pages: usize,
-    ) -> Result<Discovery, Error> {
+    pub async fn discover(&self, theme: &str, anchor: Option<u64>, pages: usize) -> Result<Discovery, Error> {
         let mut sample = SearchQuery {
             text: theme.to_string(),
             sort: Sort::TopRated,
@@ -302,11 +297,8 @@ impl SteamClient {
             .filter_map(|(collection, _)| collection.required)
             .collect();
         let (sample_size, counts) = discover::count_members(&collections);
-        let candidates: Vec<(u64, u32)> = counts
-            .into_iter()
-            .filter(|&(id, _)| Some(id) != anchor)
-            .take(DISCOVER_CANDIDATES)
-            .collect();
+        let candidates: Vec<(u64, u32)> =
+            counts.into_iter().filter(|&(id, _)| Some(id) != anchor).take(DISCOVER_CANDIDATES).collect();
 
         let every_collection = SearchQuery { collections: true, ..Default::default() };
         let total_collections = self.count(&every_collection).await?;
@@ -319,10 +311,7 @@ impl SteamClient {
             .collect()
             .await;
         let baselines = baselines.into_iter().collect::<Result<Vec<_>, _>>()?;
-        Ok(Discovery {
-            sample_size,
-            suggestions: discover::rank(sample_size, total_collections, &baselines),
-        })
+        Ok(Discovery { sample_size, suggestions: discover::rank(sample_size, total_collections, &baselines) })
     }
 
     /// Details for each id, in the order asked. Ids Steam knows nothing about
@@ -341,12 +330,7 @@ impl SteamClient {
         }
         Ok(ids
             .iter()
-            .map(|id| {
-                found
-                    .get(id)
-                    .cloned()
-                    .unwrap_or_else(|| Addon::unavailable(*id, AddonStatus::Removed))
-            })
+            .map(|id| found.get(id).cloned().unwrap_or_else(|| Addon::unavailable(*id, AddonStatus::Removed)))
             .collect())
     }
 
@@ -396,9 +380,7 @@ impl SteamClient {
         while let Some(collection) = queue.pop_front() {
             for child in self.collection_children(collection).await? {
                 if child.is_collection {
-                    if seen_collections.len() < MAX_NESTED_COLLECTIONS
-                        && seen_collections.insert(child.id)
-                    {
+                    if seen_collections.len() < MAX_NESTED_COLLECTIONS && seen_collections.insert(child.id) {
                         queue.push_back(child.id);
                     }
                 } else if seen_items.insert(child.id) {

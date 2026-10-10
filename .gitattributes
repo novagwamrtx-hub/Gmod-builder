@@ -1,4 +1,4 @@
+# The same line endings on every system, whatever git is set to there.
 * text=auto eol=lf
 *.png binary
 *.ico binary
-*.wasm binary

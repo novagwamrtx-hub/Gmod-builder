@@ -30,7 +30,9 @@ pub fn write(path: &Path, text: &str) -> std::io::Result<()> {
 /// The same bytes give the same number on every computer and in every
 /// version of the app, which the standard library's hashes do not promise.
 pub fn fnv1a(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, &byte| (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3))
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, &byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
 }
 
 /// Tidies a folder of cached files: deletes those written longer ago than
@@ -123,8 +125,11 @@ mod tests {
         std::fs::create_dir_all(dir.0.join("a-folder")).unwrap();
 
         prune(&dir.0, day * 30, 1300);
-        let mut left: Vec<String> =
-            std::fs::read_dir(&dir.0).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        let mut left: Vec<String> = std::fs::read_dir(&dir.0)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
         left.sort();
         assert_eq!(left, ["a-folder", "newer", "newest"]);
         prune(&dir.0.join("not-there"), day, 0);

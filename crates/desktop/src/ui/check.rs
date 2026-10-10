@@ -7,10 +7,10 @@ use gmcb_core::changes::Change;
 use gmcb_core::model::workshop_url;
 use gmcb_core::AddonStatus;
 
-use crate::app::App;
-use crate::format;
 use super::theme;
 use super::widgets;
+use crate::app::App;
+use crate::format;
 
 /// Changes listed before "and N more".
 const MAX_CHANGES: usize = 30;
@@ -27,12 +27,7 @@ enum Action {
 impl App {
     pub(crate) fn check_tab(&mut self, ui: &mut egui::Ui) {
         if self.draft.ids.is_empty() {
-            theme::empty_state(
-                ui,
-                "Nothing to check yet",
-                "Add some addons to your draft first.",
-                |_| {},
-            );
+            theme::empty_state(ui, "Nothing to check yet", "Add some addons to your draft first.", |_| {});
             return;
         }
 

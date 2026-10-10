@@ -80,9 +80,7 @@ impl App {
         self.search.loading = true;
         let client = self.client.clone();
         let generation = self.search.generation;
-        self.spawn(ctx, async move {
-            Msg::Search { generation, result: client.search(&query).await }
-        });
+        self.spawn(ctx, async move { Msg::Search { generation, result: client.search(&query).await } });
     }
 
     /// Opens a collection from the search results to pick addons out of.

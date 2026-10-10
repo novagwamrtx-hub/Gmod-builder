@@ -112,8 +112,7 @@ pub(crate) fn copy_text(window: &Window, text: &str) -> bool {
     let call = || -> Result<(), JsValue> {
         let navigator = js_sys::Reflect::get(window, &"navigator".into())?;
         let clipboard = js_sys::Reflect::get(&navigator, &"clipboard".into())?;
-        let write: js_sys::Function =
-            js_sys::Reflect::get(&clipboard, &"writeText".into())?.dyn_into()?;
+        let write: js_sys::Function = js_sys::Reflect::get(&clipboard, &"writeText".into())?.dyn_into()?;
         write.call1(&clipboard, &text.into())?;
         Ok(())
     };
@@ -125,9 +124,7 @@ pub(crate) async fn post_form(window: &Window, url: &str, body: &str) -> Result<
     init.set_method("POST");
     init.set_body(&JsValue::from_str(body));
     let request = web_sys::Request::new_with_str_and_init(url, &init)?;
-    request
-        .headers()
-        .set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")?;
+    request.headers().set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")?;
     let response: web_sys::Response =
         JsFuture::from(window.fetch_with_request(&request)).await?.dyn_into()?;
     if !response.ok() {

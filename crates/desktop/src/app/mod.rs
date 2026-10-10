@@ -20,15 +20,17 @@ use gmcb_core::changes::Change;
 use gmcb_core::community::{Scores, Votes};
 use gmcb_core::discover::Discovery;
 use gmcb_core::gma::Archive;
-use gmcb_core::{updates, Addon, AddonStatus, CollectionDraft, Error, SearchPage, SearchQuery, Sort, SteamClient};
+use gmcb_core::{
+    updates, Addon, AddonStatus, CollectionDraft, Error, SearchPage, SearchQuery, Sort, SteamClient,
+};
 
 use crate::files;
 use crate::gmod::{self, Installed};
 use crate::settings::Settings;
 use crate::thumbs::{self, Thumbnails};
 
-pub use discover::DiscoverState;
 use discover::DiscoverKey;
+pub use discover::DiscoverState;
 pub use draft::{DraftView, LibraryEntry};
 pub use search::SearchState;
 
@@ -58,12 +60,32 @@ pub enum RelatedKind {
 
 /// Result of a background task, delivered to the UI thread.
 enum Msg {
-    Search { generation: u64, result: Result<SearchPage, Error> },
-    Details { ids: Vec<u64>, result: Result<Vec<Addon>, Error> },
-    Imported { id: u64, result: Result<Vec<u64>, Error> },
-    Discovered { generation: u64, key: DiscoverKey, result: Result<(Discovery, Vec<Addon>), Error> },
-    Related { id: u64, kind: RelatedKind, result: Result<Vec<Addon>, Error> },
-    KeyChecked { key: String, result: Result<(), Error> },
+    Search {
+        generation: u64,
+        result: Result<SearchPage, Error>,
+    },
+    Details {
+        ids: Vec<u64>,
+        result: Result<Vec<Addon>, Error>,
+    },
+    Imported {
+        id: u64,
+        result: Result<Vec<u64>, Error>,
+    },
+    Discovered {
+        generation: u64,
+        key: DiscoverKey,
+        result: Result<(Discovery, Vec<Addon>), Error>,
+    },
+    Related {
+        id: u64,
+        kind: RelatedKind,
+        result: Result<Vec<Addon>, Error>,
+    },
+    KeyChecked {
+        key: String,
+        result: Result<(), Error>,
+    },
     Scores(Result<Scores, String>),
     /// The tag of the project's latest release, if it could be asked.
     LatestRelease(Option<String>),
@@ -483,9 +505,7 @@ impl App {
             self.key_status = KeyStatus::Checking;
             let client = self.client.clone();
             let key = self.settings.api_key.clone();
-            self.spawn(ctx, async move {
-                Msg::KeyChecked { key, result: client.validate_key().await }
-            });
+            self.spawn(ctx, async move { Msg::KeyChecked { key, result: client.validate_key().await } });
         }
     }
 

@@ -37,19 +37,27 @@ impl App {
             ui.spacing_mut().item_spacing.x = 6.0;
             let vouch = if mine == Some(true) { "✔ Vouched" } else { "Vouch" };
             let hint = "It worked well for you and you would put it in a collection again";
-            if theme::filter_chip(ui, (mine == Some(true)).then_some(true), vouch).on_hover_text(hint).clicked() {
+            if theme::filter_chip(ui, (mine == Some(true)).then_some(true), vouch)
+                .on_hover_text(hint)
+                .clicked()
+            {
                 verdict = Some((mine != Some(true)).then_some(true));
             }
             let warn = if mine == Some(false) { "Warned" } else { "Warn" };
             let hint = "It was broken, clashed with other addons, or was not what it says";
-            if theme::filter_chip(ui, (mine == Some(false)).then_some(false), warn).on_hover_text(hint).clicked() {
+            if theme::filter_chip(ui, (mine == Some(false)).then_some(false), warn)
+                .on_hover_text(hint)
+                .clicked()
+            {
                 verdict = Some((mine != Some(false)).then_some(false));
             }
             let tally = self.tally_of(id);
             let said = match (tally.score(), tally.votes()) {
                 (Some(score), votes) => format!("Vouch score {score} · {votes} builders"),
                 (None, 0) => "No vouches yet".to_string(),
-                (None, _) => format!("{} vouched, {} warned · needs {MIN_VOTES} for a score", tally.up, tally.down),
+                (None, _) => {
+                    format!("{} vouched, {} warned · needs {MIN_VOTES} for a score", tally.up, tally.down)
+                }
             };
             // Kept whole: in a narrow panel it goes under the buttons.
             ui.add(egui::Label::new(theme::small(said)).wrap_mode(egui::TextWrapMode::Extend));

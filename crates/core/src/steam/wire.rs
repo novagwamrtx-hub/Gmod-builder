@@ -182,20 +182,15 @@ pub fn parse_file_list(json: &str) -> Result<SearchPage, serde_json::Error> {
 /// Steam has no such collection.
 pub fn parse_collection(json: &str) -> Result<Option<Vec<CollectionChild>>, serde_json::Error> {
     let list = serde_json::from_str::<Envelope<CollectionList>>(json)?.response;
-    Ok(list
-        .collectiondetails
-        .into_iter()
-        .next()
-        .filter(|c| c.result == RESULT_OK)
-        .map(|c| {
-            c.children
-                .into_iter()
-                .map(|child| CollectionChild {
-                    id: child.publishedfileid,
-                    is_collection: child.file_type == FILE_TYPE_COLLECTION,
-                })
-                .collect()
-        }))
+    Ok(list.collectiondetails.into_iter().next().filter(|c| c.result == RESULT_OK).map(|c| {
+        c.children
+            .into_iter()
+            .map(|child| CollectionChild {
+                id: child.publishedfileid,
+                is_collection: child.file_type == FILE_TYPE_COLLECTION,
+            })
+            .collect()
+    }))
 }
 
 #[derive(Deserialize)]

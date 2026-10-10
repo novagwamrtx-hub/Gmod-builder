@@ -119,7 +119,8 @@ impl Submission {
                 "undo" => None,
                 _ => continue,
             };
-            let ids = ids.split(|c: char| c == ',' || c.is_whitespace()).filter_map(|id| id.parse::<u64>().ok());
+            let ids =
+                ids.split(|c: char| c == ',' || c.is_whitespace()).filter_map(|id| id.parse::<u64>().ok());
             for id in ids.filter(|&id| id != 0) {
                 if found.len() >= MAX_PER_SUBMISSION {
                     return found;
@@ -273,7 +274,9 @@ fn percent_encode(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for byte in text.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b',' => out.push(byte as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b',' => {
+                out.push(byte as char)
+            }
             _ => out.push_str(&format!("%{byte:02X}")),
         }
     }

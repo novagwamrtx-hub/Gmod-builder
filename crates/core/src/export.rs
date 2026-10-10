@@ -92,10 +92,8 @@ pub fn by_kind(addons: &[Addon]) -> Vec<(Kind, Vec<&Addon>)> {
     Kind::ALL
         .into_iter()
         .map(|kind| {
-            let group: Vec<&Addon> = addons
-                .iter()
-                .filter(|a| a.status == AddonStatus::Ok && a.kind() == kind)
-                .collect();
+            let group: Vec<&Addon> =
+                addons.iter().filter(|a| a.status == AddonStatus::Ok && a.kind() == kind).collect();
             (kind, group)
         })
         .filter(|(_, group)| !group.is_empty())

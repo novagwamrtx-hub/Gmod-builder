@@ -42,9 +42,8 @@ impl App {
         let report = analysis::analyze(&addons, now_unix(), &options);
         self.checking = false;
         // So the report can name missing required addons, not just number them.
-        let unknown = analysis::missing_requirements(&report)
-            .into_iter()
-            .filter(|id| !self.addons.contains_key(id));
+        let unknown =
+            analysis::missing_requirements(&report).into_iter().filter(|id| !self.addons.contains_key(id));
         self.fetch_details(ctx, unknown.collect());
         self.report = Some(report);
 

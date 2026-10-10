@@ -86,7 +86,10 @@ fn decode(bytes: &[u8], side: u32) -> Result<ColorImage, String> {
         picture = picture.thumbnail(side, side);
     }
     let pixels = picture.to_rgba8();
-    Ok(ColorImage::from_rgba_unmultiplied([pixels.width() as usize, pixels.height() as usize], pixels.as_raw()))
+    Ok(ColorImage::from_rgba_unmultiplied(
+        [pixels.width() as usize, pixels.height() as usize],
+        pixels.as_raw(),
+    ))
 }
 
 enum Entry {
@@ -150,7 +153,10 @@ impl Shared {
     }
 
     async fn fetch(&self, side: u32, url: &str) -> Result<ColorImage, String> {
-        let file = self.dir.as_ref().map(|dir| dir.join(format!("{:016x}-{side}.img", files::fnv1a(url.as_bytes()))));
+        let file = self
+            .dir
+            .as_ref()
+            .map(|dir| dir.join(format!("{:016x}-{side}.img", files::fnv1a(url.as_bytes()))));
         let kept = file.as_ref().and_then(|file| std::fs::read(file).ok());
         if let Some(image) = kept.and_then(|bytes| decode(&bytes, side).ok()) {
             return Ok(image);
@@ -199,7 +205,8 @@ impl Shared {
                 return Err("the picture is too large".to_string());
             }
         }
-        let partial = status == reqwest::StatusCode::PARTIAL_CONTENT && first.is_some_and(|first| bytes.len() >= first);
+        let partial =
+            status == reqwest::StatusCode::PARTIAL_CONTENT && first.is_some_and(|first| bytes.len() >= first);
         Ok(Downloaded { bytes, partial })
     }
 }
@@ -351,7 +358,8 @@ mod tests {
         assert_eq!(parse("thumb://big/https://example.com/"), None);
 
         assert_eq!(sized(url, 128), format!("{url}?imw=128&imh=128&ima=fit&impolicy=Letterbox"));
-        assert!(sized("https://example.com/a?b=1", 256).ends_with("a?b=1&imw=256&imh=256&ima=fit&impolicy=Letterbox"));
+        assert!(sized("https://example.com/a?b=1", 256)
+            .ends_with("a?b=1&imw=256&imh=256&ima=fit&impolicy=Letterbox"));
     }
 
     #[test]
@@ -396,7 +404,8 @@ mod tests {
     }
 
     fn reply(status: &str, body: &[u8]) -> Vec<u8> {
-        let head = format!("HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len());
+        let head =
+            format!("HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len());
         [head.as_bytes(), body].concat()
     }
 
@@ -415,18 +424,26 @@ mod tests {
 
     #[test]
     fn thumbnails_are_downloaded_small_and_then_kept() {
-        let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
+        let runtime =
+            tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
         let dir = TestDir::new("thumbs");
         let ctx = egui::Context::default();
         let (server, asked) = serve(vec![reply("200 OK", &picture(120, 90, image::ImageFormat::Png))]);
         let uri = uri(&format!("{server}/preview/"), 64.0);
 
         let loader = Thumbnails::new(runtime.handle().clone(), Some(dir.0.clone()));
-        assert!(matches!(loader.load(&ctx, "https://example.com/a.png", SizeHint::default()), Err(LoadError::NotSupported)));
+        assert!(matches!(
+            loader.load(&ctx, "https://example.com/a.png", SizeHint::default()),
+            Err(LoadError::NotSupported)
+        ));
         assert_eq!(wait_for(&loader, &ctx, &uri).unwrap().size, [120, 90]);
         let asked = asked.lock().unwrap().clone();
         assert_eq!(asked.len(), 1);
-        assert!(asked[0].starts_with("get /preview/?imw=128&imh=128&ima=fit&impolicy=letterbox "), "{}", asked[0]);
+        assert!(
+            asked[0].starts_with("get /preview/?imw=128&imh=128&ima=fit&impolicy=letterbox "),
+            "{}",
+            asked[0]
+        );
         assert!(asked[0].contains("range: bytes=0-65535"), "{}", asked[0]);
         assert_eq!(std::fs::read_dir(&dir.0).unwrap().count(), 1, "kept on disk");
 
@@ -442,12 +459,17 @@ mod tests {
 
     #[test]
     fn a_cut_off_animation_is_used_and_a_cut_off_picture_is_fetched_whole() {
-        let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
+        let runtime =
+            tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
         let ctx = egui::Context::default();
         let loader = Thumbnails::new(runtime.handle().clone(), None);
 
         let gif = animation(128, 40);
-        assert!(gif.len() > first_part(128), "the animation must be longer than what is fetched: {}", gif.len());
+        assert!(
+            gif.len() > first_part(128),
+            "the animation must be longer than what is fetched: {}",
+            gif.len()
+        );
         let (server, asked) = serve(vec![reply("206 Partial Content", &gif[..first_part(128)])]);
         let image = wait_for(&loader, &ctx, &uri(&format!("{server}/gif/"), 64.0)).unwrap();
         assert_eq!(image.size, [128, 128]);
@@ -456,7 +478,8 @@ mod tests {
         // A server that ignores the size and sends a large picture in parts.
         let png = picture(700, 700, image::ImageFormat::Png);
         assert!(png.len() > first_part(128), "{}", png.len());
-        let (server, asked) = serve(vec![reply("206 Partial Content", &png[..first_part(128)]), reply("200 OK", &png)]);
+        let (server, asked) =
+            serve(vec![reply("206 Partial Content", &png[..first_part(128)]), reply("200 OK", &png)]);
         let image = wait_for(&loader, &ctx, &uri(&format!("{server}/png/"), 64.0)).unwrap();
         assert_eq!(image.size, [128, 128]);
         let asked = asked.lock().unwrap().clone();
@@ -466,7 +489,8 @@ mod tests {
 
     #[test]
     fn a_missing_picture_fails_without_hammering_the_server() {
-        let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
+        let runtime =
+            tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
         let ctx = egui::Context::default();
         let loader = Thumbnails::new(runtime.handle().clone(), None);
         let (server, asked) = serve(vec![reply("404 Not Found", b"")]);
@@ -478,7 +502,8 @@ mod tests {
 
     #[test]
     fn old_thumbnails_are_dropped_from_memory() {
-        let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
+        let runtime =
+            tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap();
         let ctx = egui::Context::default();
         let loader = Arc::new(Thumbnails::new(runtime.handle().clone(), None));
         {
@@ -500,7 +525,8 @@ mod tests {
     #[test]
     #[ignore = "needs network access and a saved Steam key"]
     fn live_thumbnails() {
-        let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+        let runtime =
+            tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
         let key = crate::settings::Settings::load().api_key;
         assert!(!key.is_empty(), "save a Steam key in the app first");
         let client = gmcb_core::SteamClient::new(Some(key));

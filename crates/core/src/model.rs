@@ -232,13 +232,10 @@ pub fn parse_workshop_id(input: &str) -> Option<u64> {
     if !input.is_empty() && input.bytes().all(|b| b.is_ascii_digit()) {
         return input.parse().ok();
     }
-    input
-        .split(['?', '&', '#'])
-        .find_map(|part| part.strip_prefix("id="))
-        .and_then(|v| {
-            let digits: String = v.chars().take_while(char::is_ascii_digit).collect();
-            digits.parse().ok()
-        })
+    input.split(['?', '&', '#']).find_map(|part| part.strip_prefix("id=")).and_then(|v| {
+        let digits: String = v.chars().take_while(char::is_ascii_digit).collect();
+        digits.parse().ok()
+    })
 }
 
 #[cfg(test)]

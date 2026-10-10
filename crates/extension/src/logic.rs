@@ -42,10 +42,7 @@ pub fn removal_succeeded(body: &str) -> bool {
 }
 
 fn success_code(body: &str) -> Option<i64> {
-    serde_json::from_str::<serde_json::Value>(body)
-        .ok()?
-        .get("success")
-        .and_then(serde_json::Value::as_i64)
+    serde_json::from_str::<serde_json::Value>(body).ok()?.get("success").and_then(serde_json::Value::as_i64)
 }
 
 /// Collection members are marked up as `sharedfile_<id>`, and the user's

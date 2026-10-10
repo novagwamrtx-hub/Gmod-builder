@@ -127,8 +127,12 @@ fn load_discovery(key: &DiscoverKey) -> Option<SavedDiscovery> {
 /// Best effort: a discovery that cannot be saved is simply asked for again.
 pub(super) fn save_discovery(key: &DiscoverKey, discovery: &Discovery, addons: &[Addon]) {
     let Some(dir) = Settings::discoveries_dir() else { return };
-    let saved =
-        SavedDiscovery { key: key.clone(), at: now_unix(), discovery: discovery.clone(), addons: addons.to_vec() };
+    let saved = SavedDiscovery {
+        key: key.clone(),
+        at: now_unix(),
+        discovery: discovery.clone(),
+        addons: addons.to_vec(),
+    };
     if let Ok(text) = serde_json::to_string(&saved) {
         let _ = files::write(&dir.join(discovery_file(key)), &text);
     }

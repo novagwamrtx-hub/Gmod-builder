@@ -1,0 +1,4 @@
+# Rows of builder calls and struct literals read better on one line than
+# spread over five, so lines may run a little longer than the default.
+max_width = 110
+use_small_heuristics = "Max"

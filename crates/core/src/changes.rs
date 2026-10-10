@@ -25,12 +25,7 @@ impl Change {
 pub fn snapshot(addons: &[Addon]) -> Vec<Snap> {
     addons
         .iter()
-        .map(|a| Snap {
-            id: a.id,
-            title: a.title.clone(),
-            time_updated: a.time_updated,
-            status: a.status,
-        })
+        .map(|a| Snap { id: a.id, title: a.title.clone(), time_updated: a.time_updated, status: a.status })
         .collect()
 }
 

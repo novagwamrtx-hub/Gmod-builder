@@ -306,13 +306,7 @@ pub fn apply(ctx: &egui::Context, look: &Look) {
         w.active.bg_stroke = Stroke::new(1.0, accent());
         w.active.fg_stroke = Stroke::new(1.0, bright);
         w.open = w.hovered;
-        for visuals in [
-            &mut w.noninteractive,
-            &mut w.inactive,
-            &mut w.hovered,
-            &mut w.active,
-            &mut w.open,
-        ] {
+        for visuals in [&mut w.noninteractive, &mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
             visuals.corner_radius = corners;
             visuals.expansion = 0.0;
         }

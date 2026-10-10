@@ -4,11 +4,11 @@
 use eframe::egui::{self, Align, Layout};
 use gmcb_core::{Addon, AddonStatus, Kind};
 
-use crate::app::{App, DraftView, Tab};
-use crate::format;
-use super::RowAction;
 use super::theme;
 use super::widgets::{self, RowOptions, HEADER_HEIGHT};
+use super::RowAction;
+use crate::app::{App, DraftView, Tab};
+use crate::format;
 
 enum Row {
     Header(String, String),
@@ -117,7 +117,9 @@ impl App {
                     });
                 ui.label(theme::small("Show"));
                 ui.add(
-                    theme::text_field(&mut self.draft_filter).hint_text("Filter by name").desired_width(170.0),
+                    theme::text_field(&mut self.draft_filter)
+                        .hint_text("Filter by name")
+                        .desired_width(170.0),
                 );
             });
         });
@@ -165,7 +167,12 @@ impl App {
             Row::Header(title, detail) => widgets::list_header(ui, title, detail),
             Row::Item(index) => {
                 let (index, addon) = (*index, &addons[*index]);
-                let options = RowOptions { now, selected: self.selected == Some(addon.id), note: None, vouch: self.vouch_note(addon.id) };
+                let options = RowOptions {
+                    now,
+                    selected: self.selected == Some(addon.id),
+                    note: None,
+                    vouch: self.vouch_note(addon.id),
+                };
                 let clicked = widgets::addon_row(ui, addon, options, |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     let mut picked = self.picked.contains(&addon.id);
@@ -193,7 +200,12 @@ impl App {
             }
             Row::Maybe(id) => {
                 let addon = self.addon_or_stand_in(*id);
-                let options = RowOptions { now, selected: self.selected == Some(*id), note: None, vouch: self.vouch_note(*id) };
+                let options = RowOptions {
+                    now,
+                    selected: self.selected == Some(*id),
+                    note: None,
+                    vouch: self.vouch_note(*id),
+                };
                 let clicked = widgets::addon_row(ui, &addon, options, |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     if ui.button("Drop").on_hover_text("Take off the maybe pile").clicked() {
@@ -280,7 +292,10 @@ impl App {
                     if ui.button("Save a copy…").clicked() {
                         chosen = Some(Menu::SaveCopy);
                     }
-                    if ui.add_enabled(self.draft_path.is_some(), egui::Button::new("Delete this draft…")).clicked() {
+                    if ui
+                        .add_enabled(self.draft_path.is_some(), egui::Button::new("Delete this draft…"))
+                        .clicked()
+                    {
                         chosen = Some(Menu::Delete);
                     }
                     if chosen.is_some() {
@@ -329,7 +344,8 @@ impl App {
     fn draft_rows(&self, addons: &[Addon]) -> Vec<Row> {
         let wanted = self.draft_filter.trim().to_lowercase();
         let listed = |title: String| wanted.is_empty() || title.to_lowercase().contains(&wanted);
-        let mut order: Vec<usize> = (0..addons.len()).filter(|&i| listed(addons[i].display_title())).collect();
+        let mut order: Vec<usize> =
+            (0..addons.len()).filter(|&i| listed(addons[i].display_title())).collect();
         let mut rows = Vec::new();
         match self.draft_view {
             DraftView::Order => rows.extend(order.into_iter().map(Row::Item)),
@@ -359,7 +375,8 @@ impl App {
                 group("Unavailable", order.iter().copied().filter(|i| !ok(i)).collect());
             }
         }
-        let maybe: Vec<u64> = self.draft.maybe.iter().copied().filter(|&id| listed(self.title_of(id))).collect();
+        let maybe: Vec<u64> =
+            self.draft.maybe.iter().copied().filter(|&id| listed(self.title_of(id))).collect();
         if !maybe.is_empty() {
             let detail = format!("{} · not part of the collection", maybe.len());
             rows.push(Row::Header("Maybe".to_string(), detail));

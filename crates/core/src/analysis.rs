@@ -37,18 +37,46 @@ pub enum Severity {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Finding {
     /// Removed, banned or hidden: subscribers and servers cannot download it.
-    Unavailable { id: u64, title: String, status: AddonStatus },
+    Unavailable {
+        id: u64,
+        title: String,
+        status: AddonStatus,
+    },
     /// An addon lists a required item that is not in the collection.
-    MissingRequirement { addon: u64, addon_title: String, missing: u64 },
+    MissingRequirement {
+        addon: u64,
+        addon_title: String,
+        missing: u64,
+    },
     /// Details were fetched without a key, so requirements were not checked.
-    RequirementsUnknown { count: usize },
+    RequirementsUnknown {
+        count: usize,
+    },
     /// Two addons ship files at the same paths; one silently wins.
-    FileConflict { a: u64, a_title: String, b: u64, b_title: String, files: usize, example: String, scripts: bool },
+    FileConflict {
+        a: u64,
+        a_title: String,
+        b: u64,
+        b_title: String,
+        files: usize,
+        example: String,
+        scripts: bool,
+    },
     /// More than one gamemode; usually a mistake in a server collection.
-    MultipleGamemodes { ids: Vec<u64> },
+    MultipleGamemodes {
+        ids: Vec<u64>,
+    },
     /// The title says it is for a gamemode other than the collection's.
-    OtherGamemode { id: u64, title: String, made_for: &'static str },
-    Stale { id: u64, title: String, years: u64 },
+    OtherGamemode {
+        id: u64,
+        title: String,
+        made_for: &'static str,
+    },
+    Stale {
+        id: u64,
+        title: String,
+        years: u64,
+    },
 }
 
 impl Finding {
@@ -179,13 +207,16 @@ pub fn analyze(addons: &[Addon], now: u64, options: &Options) -> Report {
             gamemodes.push(addon.id);
         } else if let Some(target) = &options.target {
             if let Some((_, made_for, _)) = made_for(&addon.title).filter(|(key, ..)| key != target) {
-                findings.push(Finding::OtherGamemode { id: addon.id, title: addon.display_title(), made_for });
+                findings.push(Finding::OtherGamemode {
+                    id: addon.id,
+                    title: addon.display_title(),
+                    made_for,
+                });
             }
         }
 
         let years = now.saturating_sub(addon.time_updated) / SECONDS_PER_YEAR;
-        if options.stale_after_years > 0 && addon.time_updated > 0 && years >= options.stale_after_years
-        {
+        if options.stale_after_years > 0 && addon.time_updated > 0 && years >= options.stale_after_years {
             findings.push(Finding::Stale { id: addon.id, title: addon.display_title(), years });
         }
     }
@@ -214,9 +245,7 @@ fn made_for(title: &str) -> Option<(&'static str, &'static str, &'static [&'stat
         .map(str::to_string)
         .collect();
     let spaced = format!(" {} ", words.join(" "));
-    TARGETS
-        .into_iter()
-        .find(|(_, _, phrases)| phrases.iter().any(|p| spaced.contains(&format!(" {p} "))))
+    TARGETS.into_iter().find(|(_, _, phrases)| phrases.iter().any(|p| spaced.contains(&format!(" {p} "))))
 }
 
 /// Pairs of addons that ship files at the same paths, worst first.
@@ -257,9 +286,7 @@ fn file_conflicts(addons: &[Addon], files: &HashMap<u64, Vec<String>>) -> Vec<Fi
             }
         }
     }
-    let title = |id| {
-        addons.iter().find(|a| a.id == id).map(Addon::display_title).unwrap_or_default()
-    };
+    let title = |id| addons.iter().find(|a| a.id == id).map(Addon::display_title).unwrap_or_default();
     let mut found: Vec<Finding> = pairs
         .into_iter()
         .map(|((a, b), shared)| Finding::FileConflict {

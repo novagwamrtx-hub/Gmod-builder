@@ -197,8 +197,7 @@ impl App {
     /// Removes every ticked addon from the draft, or with `to_maybe` moves
     /// them to the maybe pile.
     pub(crate) fn clear_picked(&mut self, ctx: &egui::Context, to_maybe: bool) {
-        let picked: Vec<u64> =
-            self.draft.ids.iter().copied().filter(|id| self.picked.contains(id)).collect();
+        let picked: Vec<u64> = self.draft.ids.iter().copied().filter(|id| self.picked.contains(id)).collect();
         self.picked.clear();
         if picked.is_empty() {
             return;
@@ -230,9 +229,10 @@ impl App {
             }
             &[id] => {
                 let client = self.client.clone();
-                self.spawn(ctx, async move {
-                    Msg::Imported { id, result: client.collection_items(id).await }
-                });
+                self.spawn(
+                    ctx,
+                    async move { Msg::Imported { id, result: client.collection_items(id).await } },
+                );
                 true
             }
             ids => {
@@ -255,11 +255,8 @@ impl App {
     }
 
     pub(crate) fn addon_or_stand_in(&self, id: u64) -> Addon {
-        let mut addon = self
-            .addons
-            .get(&id)
-            .cloned()
-            .unwrap_or_else(|| Addon::unavailable(id, AddonStatus::Ok));
+        let mut addon =
+            self.addons.get(&id).cloned().unwrap_or_else(|| Addon::unavailable(id, AddonStatus::Ok));
         // Steam forgets the title of a removed addon; we may not have.
         if addon.title.is_empty() {
             if let Some(title) = self.draft.remembered_title(id) {
@@ -313,7 +310,8 @@ impl App {
         if self.draft == self.saved {
             return;
         }
-        let blank = self.draft.ids.is_empty() && self.draft.maybe.is_empty() && self.draft.name.trim().is_empty();
+        let blank =
+            self.draft.ids.is_empty() && self.draft.maybe.is_empty() && self.draft.name.trim().is_empty();
         if self.draft_path.is_none() && blank {
             return;
         }

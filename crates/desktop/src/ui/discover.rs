@@ -4,12 +4,12 @@
 use eframe::egui;
 use gmcb_core::{parse_workshop_id, AddonStatus, Kind};
 
+use super::theme;
+use super::widgets::{self, RowOptions, HEADER_HEIGHT};
+use super::RowAction;
 use crate::app::{App, Tab};
 use crate::format;
 use crate::ideas;
-use super::RowAction;
-use super::theme;
-use super::widgets::{self, RowOptions, HEADER_HEIGHT};
 
 /// Tallest the list of ideas under the search field gets.
 const IDEAS_HEIGHT: f32 = 340.0;
@@ -161,8 +161,7 @@ impl App {
 
         let mut rows = Vec::new();
         for &kind in kinds.iter().filter(|kind| !self.discover.hidden.contains(kind)) {
-            let of_kind: Vec<usize> =
-                usable.iter().filter(|(_, k)| *k == kind).map(|(i, _)| *i).collect();
+            let of_kind: Vec<usize> = usable.iter().filter(|(_, k)| *k == kind).map(|(i, _)| *i).collect();
             rows.push(Row::Header(kind, of_kind.len().min(per_kind)));
             rows.extend(of_kind.into_iter().take(per_kind).map(Row::Suggestion));
         }
@@ -179,10 +178,8 @@ impl App {
             Row::Suggestion(index) => {
                 let suggestion = &discovery.suggestions[index];
                 let addon = &self.addons[&suggestion.id];
-                let note = format!(
-                    "In {} of the {} collections",
-                    suggestion.in_sample, discovery.sample_size
-                );
+                let note =
+                    format!("In {} of the {} collections", suggestion.in_sample, discovery.sample_size);
                 let options = RowOptions {
                     now,
                     selected: self.selected == Some(addon.id),
