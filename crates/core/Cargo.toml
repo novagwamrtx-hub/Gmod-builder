@@ -1,0 +1,28 @@
+[package]
+name = "gmcb-core"
+description = "Shared logic for the GMod Workshop collection builder: Steam API client, analysis, exports"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror = { version = "2", optional = true }
+reqwest = { version = "0.12", default-features = false, optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
+
+[features]
+default = ["client"]
+# The Steam Web API client. The browser extension builds without it.
+client = ["dep:reqwest", "dep:thiserror", "dep:futures-util"]
+
+[[example]]
+name = "check_collection"
+required-features = ["client"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }

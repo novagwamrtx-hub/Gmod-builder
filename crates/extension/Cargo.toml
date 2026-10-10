@@ -1,0 +1,34 @@
+[package]
+name = "gmcb-extension"
+description = "Browser extension that adds a list of addons to a Steam Workshop collection"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gmcb-core = { path = "../core", default-features = false }
+serde_json.workspace = true
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Element",
+    "Headers",
+    "HtmlDocument",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "Location",
+    "NodeList",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Storage",
+    "Window",
+] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # The desktop crate needs GUI system libraries; core and extension do not.
+      - run: cargo test -p gmcb-core -p gmcb-extension
+
+  desktop:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release -p gmcb-desktop
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/gmod-collection-builder.exe
+
+  desktop-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Windowing, file dialogs and clipboard link against these.
+      - run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev
+      - run: cargo build --release -p gmcb-desktop
+      - run: tar -czf gmod-collection-builder-linux-x86_64.tar.gz -C target/release gmod-collection-builder
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: gmod-collection-builder-linux-x86_64.tar.gz
+
+  extension:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo install wasm-pack --locked
+      - run: wasm-pack build crates/extension --target web --release --no-typescript
+      - name: Package
+        working-directory: crates/extension
+        run: zip gmod-collection-builder-extension.zip manifest.json loader.js pkg/gmcb_extension.js pkg/gmcb_extension_bg.wasm
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: crates/extension/gmod-collection-builder-extension.zip

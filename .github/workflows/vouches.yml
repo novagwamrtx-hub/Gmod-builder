@@ -1,0 +1,52 @@
+name: Vouches
+
+# Someone pressed "Share my vouches" in the app, which opens an issue titled
+# "Vouches" with their votes in the body. Fold them into community/ledger.json
+# (one set of votes per GitHub account), republish community/scores.json for
+# the app to download, and close the issue.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+# One at a time, so two submissions cannot overwrite each other's commit.
+concurrency: vouches
+
+jobs:
+  merge:
+    if: github.event.issue.title == 'Vouches'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # The issue is text from a stranger: it reaches the tool as a file and
+      # is never put on a command line.
+      - name: Merge
+        env:
+          BODY: ${{ github.event.issue.body }}
+          ACCOUNT: ${{ github.event.issue.user.login }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.txt"
+          count=$(cargo run --quiet -p gmcb-core --no-default-features --example merge_vouches -- "$ACCOUNT" "$RUNNER_TEMP/body.txt" community)
+          echo "COUNT=$count" >> "$GITHUB_ENV"
+      - name: Publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add community
+          git diff --cached --quiet || git commit -m "Vouches from issue #${{ github.event.issue.number }}"
+          git push
+      - name: Close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$COUNT" = "0" ]; then
+            message="No votes found in this issue, so nothing was counted. Use \"Share my vouches\" in the app's Settings to fill it in."
+          else
+            message="Counted $COUNT votes. Thank you! Sharing again later updates your votes; it never counts them twice."
+          fi
+          gh issue close "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --comment "$message"

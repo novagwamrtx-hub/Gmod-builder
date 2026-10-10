@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Dev harness: runs the extension's WASM on a stand-in page, outside Steam.
+     Serve crates/extension and open /dev/harness.html?id=1#gmcb=10,20,30 -->
+<meta charset="utf-8">
+<title>Extension harness</title>
+<body style="background:#1b2838;color:#c7d5e0;font-family:sans-serif">
+<p>Stand-in for Steam's manage-collection page. <a href="filedetails.html?id=77">An addon page</a></p>
+<div id="sharedfile_20">Addon 20 (already in the collection)</div>
+<div id="sharedfile_99">Addon 99 (in the collection, not in the list)</div>
+<div id="MySubscribedItems">
+  <div class="itemChoice" id="choice_MySubscribedItems_501">Subscribed 501</div>
+  <div class="itemChoice inCollection" id="choice_MySubscribedItems_20">Subscribed 20</div>
+</div>
+<script type="module">
+  import init from "../pkg/gmcb_extension.js";
+  await init();
+</script>

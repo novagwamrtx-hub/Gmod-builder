@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- Dev harness: a stand-in for an addon's Workshop page.
+     Serve crates/extension and open /dev/filedetails.html?id=77 -->
+<meta charset="utf-8">
+<title>Extension harness: addon page</title>
+<body style="background:#1b2838;color:#c7d5e0;font-family:sans-serif">
+<p><a href="https://steamcommunity.com/app/4000">Garry's Mod</a> &gt; Workshop &gt; Some addon</p>
+<p><a href="harness.html?id=1">The collection's manage page</a></p>
+<script type="module">
+  import init from "../pkg/gmcb_extension.js";
+  await init();
+</script>

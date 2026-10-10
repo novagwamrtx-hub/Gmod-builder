@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "GMod Collection Builder",
+  "version": "0.1.0",
+  "description": "Fills and tidies your Steam Workshop collections: add or remove addons in bulk, and collect addons in a basket while you browse.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://steamcommunity.com/sharedfiles/managecollection/*",
+        "https://steamcommunity.com/sharedfiles/filedetails/*",
+        "https://steamcommunity.com/workshop/filedetails/*"
+      ],
+      "js": ["loader.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pkg/gmcb_extension.js", "pkg/gmcb_extension_bg.wasm"],
+      "matches": ["https://steamcommunity.com/*"]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": { "id": "gmod-collection-builder@gmcb.invalid" }
+  }
+}
