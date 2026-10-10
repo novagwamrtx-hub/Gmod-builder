@@ -6,9 +6,9 @@ use gmcb_core::{Addon, AddonStatus, Sort};
 
 use crate::app::{App, Tab};
 use crate::format;
-use crate::tabs::RowAction;
-use crate::theme;
-use crate::widgets::{self, RowOptions};
+use super::RowAction;
+use super::theme;
+use super::widgets::{self, RowOptions};
 
 /// GMod Workshop tags, as (tag, label).
 const TYPE_TAGS: [(&str, &str); 10] = [

@@ -9,8 +9,8 @@ use gmcb_core::AddonStatus;
 
 use crate::app::App;
 use crate::format;
-use crate::theme;
-use crate::widgets;
+use super::theme;
+use super::widgets;
 
 /// Changes listed before "and N more".
 const MAX_CHANGES: usize = 30;

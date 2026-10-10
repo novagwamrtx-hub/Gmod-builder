@@ -7,15 +7,7 @@ mod local;
 #[cfg(test)]
 mod preview;
 mod settings;
-mod tab_check;
-mod tab_discover;
-mod tab_draft;
-mod tab_export;
-mod tab_search;
-mod tab_settings;
-mod tabs;
-mod theme;
-mod widgets;
+mod ui;
 
 use eframe::egui;
 

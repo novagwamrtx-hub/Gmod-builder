@@ -6,9 +6,9 @@ use gmcb_core::{Addon, AddonStatus, Kind};
 
 use crate::app::{App, DraftView, Tab};
 use crate::format;
-use crate::tabs::RowAction;
-use crate::theme;
-use crate::widgets::{self, RowOptions, HEADER_HEIGHT};
+use super::RowAction;
+use super::theme;
+use super::widgets::{self, RowOptions, HEADER_HEIGHT};
 
 enum Row {
     Header(String, String),

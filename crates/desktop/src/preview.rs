@@ -18,7 +18,7 @@ use egui_kittest::Harness;
 use gmcb_core::{CollectionDraft, SteamClient};
 
 use crate::app::{App, DraftView, RelatedKind, Tab};
-use crate::theme;
+use crate::ui::theme;
 
 const SAMPLE_COLLECTION: u64 = 3812775577;
 const SIZE: [f32; 2] = [1100.0, 760.0];

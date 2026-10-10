@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::theme::Look;
+use crate::ui::theme::Look;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {

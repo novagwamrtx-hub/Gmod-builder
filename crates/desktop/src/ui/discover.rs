@@ -7,9 +7,9 @@ use gmcb_core::{parse_workshop_id, AddonStatus, Kind};
 use crate::app::{App, Tab};
 use crate::format;
 use crate::ideas;
-use crate::tabs::RowAction;
-use crate::theme;
-use crate::widgets::{self, RowOptions, HEADER_HEIGHT};
+use super::RowAction;
+use super::theme;
+use super::widgets::{self, RowOptions, HEADER_HEIGHT};
 
 /// Tallest the list of ideas under the search field gets.
 const IDEAS_HEIGHT: f32 = 340.0;

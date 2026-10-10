@@ -1,22 +1,19 @@
-//! Export (to Steam, to a server, as text) and Settings.
+//! Export: to Steam through the browser extension, to a server as files,
+//! and as text for a description.
 
 use std::collections::HashMap;
 
 use eframe::egui;
 use gmcb_core::{export, handoff, parse_workshop_id};
 
-use crate::app::{App, KeyStatus};
-use crate::settings::Settings;
-use crate::theme;
+use super::theme;
+use crate::app::App;
 
 /// Windows refuses to open much longer URLs; beyond this the ids travel by
 /// clipboard instead of in the link.
 const MAX_HANDOFF_URL: usize = 2000;
 const COLLECTIONS_PAGE: &str =
     "https://steamcommunity.com/workshop/browse/?appid=4000&section=collections";
-const API_KEY_PAGE: &str = "https://steamcommunity.com/dev/apikey";
-/// Seconds between looks at the clipboard while waiting for a key.
-const CLIPBOARD_INTERVAL: f64 = 1.0;
 
 impl App {
     pub(crate) fn export_tab(&mut self, ui: &mut egui::Ui) {
@@ -159,143 +156,5 @@ impl App {
             ui.label(theme::muted_text("One id per line."));
             ui.end_row();
         });
-    }
-
-    pub(crate) fn settings_tab(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical()
-            .id_salt("settings")
-            .auto_shrink(false)
-            .show(ui, |ui| self.settings_cards(ui));
-    }
-
-    fn settings_cards(&mut self, ui: &mut egui::Ui) {
-        let ctx = ui.ctx().clone();
-        self.watch_clipboard_for_key(&ctx);
-        let mut save = false;
-
-        theme::card(ui, |ui| {
-            ui.heading("Steam Web API key");
-            ui.label(theme::muted_text(
-                "Discovering, searching and required-item checks use Steam's Web API, which needs a \
-                 free key tied to your Steam account. Importing and inspecting collections works without one.",
-            ));
-            ui.horizontal(|ui| {
-                ui.add(
-                    theme::text_field(&mut self.key_input)
-                        .password(true)
-                        .hint_text("Paste your key")
-                        .desired_width(340.0),
-                );
-                save |= ui.add(theme::primary_button("Save")).clicked();
-                if self.key_input.trim() == self.settings.api_key && self.client.has_key() {
-                    match &self.key_status {
-                        KeyStatus::Unknown => ui.colored_label(theme::good(), "✔ Key saved"),
-                        KeyStatus::Checking => ui.label(theme::muted_text("Checking with Steam…")),
-                        KeyStatus::Valid => ui.colored_label(theme::good(), "✔ Steam accepts this key"),
-                        KeyStatus::Invalid(why) => ui.colored_label(theme::bad(), why),
-                    };
-                }
-            });
-            if let Some(key) = self.clipboard_key.clone() {
-                ui.horizontal(|ui| {
-                    ui.colored_label(theme::good(), "There is a key on your clipboard.");
-                    if ui.button("Use it").clicked() {
-                        self.key_input = key;
-                        self.clipboard_key = None;
-                        save = true;
-                    }
-                });
-            }
-            ui.horizontal_wrapped(|ui| {
-                ui.hyperlink_to("Get your key from Steam", API_KEY_PAGE);
-                ui.label(theme::small(
-                    "Any domain name works, for example localhost. Copy the key and come back here.",
-                ));
-            });
-            if let Some(path) = Settings::path() {
-                ui.label(theme::small(format!("Stored unencrypted in {}", path.display())));
-            }
-        });
-
-        ui.add_space(4.0);
-        self.appearance_card(ui);
-        ui.add_space(4.0);
-        self.behaviour_card(ui);
-        ui.add_space(4.0);
-        self.community_card(ui);
-
-        ui.add_space(4.0);
-        theme::card(ui, |ui| {
-            ui.heading("Garry's Mod on this computer");
-            ui.label(theme::muted_text(
-                "Used to import the addons you have installed and to compare addon files for conflicts.",
-            ));
-            match &self.gmod_dir {
-                Some(dir) => {
-                    ui.colored_label(
-                        theme::good(),
-                        format!("✔ Found, with {} downloaded addons", self.installed.len()),
-                    );
-                    ui.label(theme::small(dir.display().to_string()));
-                }
-                None => {
-                    ui.colored_label(theme::warn(), "Not found in Steam's usual folders.");
-                }
-            }
-            ui.horizontal(|ui| {
-                ui.add(
-                    theme::text_field(&mut self.gmod_input)
-                        .hint_text("Only if it was not found: path of the garrysmod folder")
-                        .desired_width(460.0),
-                );
-                if ui.button("Browse…").clicked() {
-                    if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                        self.gmod_input = dir.display().to_string();
-                        save = true;
-                    }
-                }
-                save |= ui.button("Save").clicked();
-            });
-        });
-
-        if save {
-            self.save_settings(&ctx);
-        }
-    }
-
-    /// While the key field is empty, notices a Web API key being copied, so
-    /// the user does not have to find the field to paste into.
-    fn watch_clipboard_for_key(&mut self, ctx: &egui::Context) {
-        if !self.key_input.trim().is_empty() {
-            self.clipboard_key = None;
-            return;
-        }
-        let now = ctx.input(|i| i.time);
-        if now - self.clipboard_checked >= CLIPBOARD_INTERVAL {
-            self.clipboard_checked = now;
-            self.clipboard_key = arboard::Clipboard::new()
-                .and_then(|mut clipboard| clipboard.get_text())
-                .ok()
-                .map(|text| text.trim().to_string())
-                .filter(|text| looks_like_key(text));
-        }
-        ctx.request_repaint_after(std::time::Duration::from_secs_f64(CLIPBOARD_INTERVAL));
-    }
-}
-
-/// Steam Web API keys are 32 hexadecimal characters.
-fn looks_like_key(text: &str) -> bool {
-    text.len() == 32 && text.bytes().all(|b| b.is_ascii_hexdigit())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::looks_like_key;
-
-    #[test]
-    fn recognises_keys() {
-        assert!(looks_like_key("0123456789ABCDEF0123456789abcdef"));
-        assert!(!looks_like_key("0123456789ABCDEF0123456789abcde"));
-        assert!(!looks_like_key("https://steamcommunity.com/dev/a"));
     }
 }

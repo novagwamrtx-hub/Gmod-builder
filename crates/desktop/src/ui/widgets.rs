@@ -5,7 +5,7 @@ use eframe::egui::{self, Align, Layout, Margin, RichText, Sense, UiBuilder};
 use gmcb_core::{Addon, AddonStatus};
 
 use crate::format;
-use crate::theme;
+use super::theme;
 
 pub const HEADER_HEIGHT: f32 = 30.0;
 
