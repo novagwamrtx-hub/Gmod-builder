@@ -68,8 +68,10 @@ impl App {
                 }
             }
             if installed > 0 {
-                let label = format!("Import my {installed} installed addons");
-                let hint = "Adds every Workshop addon Garry's Mod has downloaded on this computer";
+                let label = format!("Import the {installed} addons on this computer");
+                let hint = "Adds every Workshop addon Garry's Mod has downloaded here. That is more \
+                    than you are subscribed to: it keeps the ones servers sent you, and ones you \
+                    have since unsubscribed from";
                 if ui.button(label).on_hover_text(hint).clicked() {
                     self.import_installed(&ctx);
                 }
