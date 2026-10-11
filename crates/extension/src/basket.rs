@@ -13,6 +13,9 @@ use crate::{BUTTON_STYLE, MUTED_STYLE, PANEL_STYLE, QUIET_BUTTON_STYLE};
 
 /// Present on Workshop pages of Garry's Mod items.
 const GMOD_MARKER: &str = "a[href*='/app/4000']";
+/// Present on a collection's page, which is laid out like an addon's. A
+/// collection cannot be put in another, so it gets no basket button.
+const COLLECTION_MARKER: &str = ".collectionChildren, .collectionHeader";
 
 #[derive(Clone)]
 struct Basket {
@@ -25,7 +28,9 @@ struct Basket {
 }
 
 pub fn show(window: Window, document: Document, id: u64) -> Result<(), JsValue> {
-    if document.query_selector(GMOD_MARKER)?.is_none() {
+    if document.query_selector(GMOD_MARKER)?.is_none()
+        || document.query_selector(COLLECTION_MARKER)?.is_some()
+    {
         return Ok(());
     }
     let body = document.body().ok_or("no body")?;
@@ -57,10 +62,12 @@ impl Basket {
         on_click(&self.copy, move || {
             let ids = read_basket(&basket.window);
             let lines: Vec<String> = ids.iter().map(u64::to_string).collect();
-            let note = if copy_text(&basket.window, &lines.join("\n")) {
-                format!("Copied {} ids. Paste them into the app's Draft tab.", ids.len())
-            } else {
+            let note = if !copy_text(&basket.window, &lines.join("\n")) {
                 "Could not reach the clipboard.".to_string()
+            } else if ids.len() == 1 {
+                "Copied 1 id. Paste it into the app's Draft tab.".to_string()
+            } else {
+                format!("Copied {} ids. Paste them into the app's Draft tab.", ids.len())
             };
             basket.count.set_text_content(Some(&note));
         });

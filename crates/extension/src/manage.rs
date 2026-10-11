@@ -152,8 +152,16 @@ impl Panel {
         });
     }
 
+    /// The list in the box, without the collection itself: Steam will not
+    /// put a collection inside itself.
     fn wanted(&self) -> Vec<u64> {
-        handoff::parse_id_list(&self.ids.value())
+        let mut wanted = handoff::parse_id_list(&self.ids.value());
+        wanted.retain(|&id| id != self.collection);
+        wanted
+    }
+
+    fn lists_itself(&self) -> bool {
+        handoff::parse_id_list(&self.ids.value()).contains(&self.collection)
     }
 
     fn members(&self) -> HashSet<u64> {
@@ -179,6 +187,9 @@ impl Panel {
         self.remove.set_text_content(Some(&format!("Remove the other {to_remove}")));
         self.remove.set_hidden(to_remove == 0);
         self.remove_armed.set(false);
+        if self.lists_itself() {
+            self.say("The list has this collection's own id in it, which is left out.");
+        }
     }
 
     fn say(&self, text: &str) {
@@ -254,7 +265,7 @@ impl Panel {
             let why = if streak >= MAX_FAILURE_STREAK {
                 "Stopped after repeated failures: check that you own this collection and are logged in"
             } else {
-                "Some did not go through (removed or private addons cannot be added)"
+                "Some did not go through (removed or private addons, and other collections, cannot be added)"
             };
             summary.push_str(&format!(". {left} left. {why}"));
         }
