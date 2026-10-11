@@ -4,6 +4,7 @@
 //! (browser extension), so nothing here may assume a filesystem or a UI.
 
 pub mod analysis;
+pub mod bbcode;
 pub mod changes;
 pub mod community;
 pub mod discover;
@@ -17,6 +18,6 @@ pub mod model;
 pub mod steam;
 pub mod updates;
 
-pub use model::{parse_workshop_id, Addon, AddonStatus, CollectionDraft, Kind, Snap, GMOD_APPID};
+pub use model::{parse_workshop_id, Addon, AddonStatus, CollectionDraft, Kind, Page, Snap, GMOD_APPID};
 #[cfg(feature = "client")]
 pub use steam::{Error, SearchPage, SearchQuery, Sort, SteamClient};

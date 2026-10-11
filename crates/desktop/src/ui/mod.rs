@@ -106,11 +106,16 @@ impl App {
         if let Some(id) = self.last_selected {
             let mut open = self.selected.is_some();
             let side = egui::Frame::new().fill(theme::bar()).inner_margin(14);
-            egui::Panel::right("detail")
-                .frame(side)
-                .exact_size(theme::detail_width())
-                .resizable(false)
-                .show_collapsible(ui, &mut open, |ui| self.detail_panel(ui, id));
+            let width = if self.detail_wide {
+                (ui.available_width() - detail::BESIDE_WIDE).clamp(theme::detail_width(), detail::WIDE)
+            } else {
+                theme::detail_width()
+            };
+            egui::Panel::right("detail").frame(side).exact_size(width).resizable(false).show_collapsible(
+                ui,
+                &mut open,
+                |ui| self.detail_panel(ui, id),
+            );
         }
 
         // Each page fades in and settles upwards when its tab is opened.

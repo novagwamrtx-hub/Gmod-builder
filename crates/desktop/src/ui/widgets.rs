@@ -201,27 +201,36 @@ pub fn thumbnail(ui: &mut egui::Ui, addon: &Addon, side: f32) {
         return;
     }
     let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), Sense::hover());
+    if !addon.preview_url.as_ref().is_some_and(|url| paint_picture(ui, rect, url)) {
+        ui.painter().rect_filled(rect, theme::radius(), theme::border());
+    }
+}
+
+/// The picture at `url` in a space of `size`, or a quiet rectangle while it
+/// loads.
+pub fn picture(ui: &mut egui::Ui, url: &str, size: egui::Vec2, sense: Sense) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(size, sense);
+    if !paint_picture(ui, rect, url) {
+        ui.painter().rect_filled(rect, theme::radius(), theme::border());
+    }
+    response
+}
+
+/// Paints the picture at `url` whole and centred in `rect`, whatever its
+/// shape. False if it is not loaded yet; nothing is asked for while `rect`
+/// is out of view.
+pub fn paint_picture(ui: &egui::Ui, rect: egui::Rect, url: &str) -> bool {
     if !ui.is_rect_visible(rect) {
-        return;
+        return false;
     }
-    let texture = addon.preview_url.as_ref().and_then(|url| {
-        let image = egui::Image::new(thumbs::uri(url, side * ui.pixels_per_point()));
-        match image.load_for_size(ui.ctx(), rect.size()) {
-            Ok(egui::load::TexturePoll::Ready { texture }) => Some(texture),
-            _ => None,
-        }
-    });
-    match texture {
-        Some(texture) => {
-            // Whole and centred, whatever its shape.
-            let scale = (side / texture.size.x).min(side / texture.size.y);
-            let fitted = egui::Rect::from_center_size(rect.center(), texture.size * scale);
-            egui::Image::from_texture(texture).corner_radius(theme::radius()).paint_at(ui, fitted);
-        }
-        None => {
-            ui.painter().rect_filled(rect, theme::radius(), theme::border());
-        }
-    }
+    let image = egui::Image::new(thumbs::uri(url, rect.size().max_elem() * ui.pixels_per_point()));
+    let Ok(egui::load::TexturePoll::Ready { texture }) = image.load_for_size(ui.ctx(), rect.size()) else {
+        return false;
+    };
+    let scale = (rect.width() / texture.size.x).min(rect.height() / texture.size.y);
+    let fitted = egui::Rect::from_center_size(rect.center(), texture.size * scale);
+    egui::Image::from_texture(texture).corner_radius(theme::radius()).paint_at(ui, fitted);
+    true
 }
 
 /// One line of a report: coloured dot, message, actions on the right.

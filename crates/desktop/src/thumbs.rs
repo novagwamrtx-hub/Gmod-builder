@@ -40,9 +40,20 @@ pub fn uri(url: &str, pixels: f32) -> String {
     let side = match pixels {
         p if p <= 144.0 => 128,
         p if p <= 288.0 => 256,
-        _ => 512,
+        p if p <= 576.0 => 512,
+        _ => 1024,
     };
     format!("{SCHEME}{side}/{url}")
+}
+
+/// True for a picture kept on Steam's own servers, which are the only ones
+/// the app loads pictures from.
+pub fn is_on_steam(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else { return false };
+    let host = rest.split(['/', '?', '#']).next().unwrap_or_default().to_ascii_lowercase();
+    ["steamusercontent.com", "steamstatic.com", "steamuserimages-a.akamaihd.net", "steamcdn-a.akamaihd.net"]
+        .iter()
+        .any(|steam| host == *steam || host.ends_with(&format!(".{steam}")))
 }
 
 fn parse(uri: &str) -> Option<(u32, &str)> {
@@ -353,6 +364,7 @@ mod tests {
         assert_eq!(uri(url, 144.0), format!("thumb://128/{url}"));
         assert_eq!(uri(url, 200.0), format!("thumb://256/{url}"));
         assert_eq!(uri(url, 450.0), format!("thumb://512/{url}"));
+        assert_eq!(uri(url, 900.0), format!("thumb://1024/{url}"));
         assert_eq!(parse(&uri(url, 64.0)), Some((128, url)));
         assert_eq!(parse("https://example.com/a.png"), None);
         assert_eq!(parse("thumb://big/https://example.com/"), None);
@@ -360,6 +372,18 @@ mod tests {
         assert_eq!(sized(url, 128), format!("{url}?imw=128&imh=128&ima=fit&impolicy=Letterbox"));
         assert!(sized("https://example.com/a?b=1", 256)
             .ends_with("a?b=1&imw=256&imh=256&ima=fit&impolicy=Letterbox"));
+    }
+
+    #[test]
+    fn only_steam_hosts_count_as_steam() {
+        assert!(is_on_steam("https://images.steamusercontent.com/ugc/1/ABC/"));
+        assert!(is_on_steam("https://steamuserimages-a.akamaihd.net/ugc/1/ABC/"));
+        assert!(is_on_steam("https://cdn.cloudflare.steamstatic.com/a.png?t=1"));
+        assert!(!is_on_steam("http://images.steamusercontent.com/ugc/1/ABC/"), "not without encryption");
+        assert!(!is_on_steam("https://i.imgur.com/a.png"));
+        assert!(!is_on_steam("https://steamusercontent.com.example.org/a.png"));
+        assert!(!is_on_steam("https://example.org/steamusercontent.com/a.png"));
+        assert!(!is_on_steam("https://notsteamstatic.com/a.png"));
     }
 
     #[test]

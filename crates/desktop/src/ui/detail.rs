@@ -1,13 +1,25 @@
-//! The panel beside every tab that shows one addon: what it is, what it
-//! requires, what is built for it, and the vouch buttons.
+//! The panel beside every tab that shows one addon the way its Workshop
+//! page does: its pictures, its numbers and its description, and with them
+//! what it requires, what is built for it, and the vouch buttons.
 
-use eframe::egui::{self, Align, Layout, RichText};
+use eframe::egui::{self, Align, Layout, RichText, Sense};
+use gmcb_core::bbcode::{self, Block, Span};
 use gmcb_core::community::MIN_VOTES;
 use gmcb_core::AddonStatus;
 
 use super::{theme, widgets, RowAction};
 use crate::app::{App, RelatedKind, Tab};
-use crate::format;
+use crate::{format, thumbs};
+
+/// As wide as the panel gets when it is asked to be wide.
+pub(super) const WIDE: f32 = 760.0;
+/// What a wide panel leaves for the tab beside it.
+pub(super) const BESIDE_WIDE: f32 = 520.0;
+/// A description of more lines than this starts out folded to this many.
+const FOLDED_LINES: usize = 12;
+/// Not worth folding for the sake of this many lines.
+const FOLD_SLACK: usize = 4;
+const STRIP_PICTURE: egui::Vec2 = egui::vec2(64.0, 36.0);
 
 impl App {
     /// What a row says about vouches: the score, once enough builders have
@@ -74,10 +86,23 @@ impl App {
         let mut load = None;
         let mut discover = false;
         let mut verdict = None;
+        let mut widen = false;
+        let mut picked = None;
+        let mut fold = None;
+        let page = self.pages.get(&id);
+        let pictures = match page {
+            Some(page) if !page.pictures.is_empty() => page.pictures.as_slice(),
+            _ => addon.preview_url.as_slice(),
+        };
 
         ui.horizontal(|ui| {
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                 close = ui.button("Close").on_hover_text("Esc").clicked();
+                let (label, hint) = match self.detail_wide {
+                    true => ("»", "Back to the narrow panel"),
+                    false => ("«", "Wider, with room for the pictures and the description"),
+                };
+                widen = ui.button(label).on_hover_text(hint).clicked();
                 ui.with_layout(Layout::top_down(Align::Min), |ui| {
                     ui.add(egui::Label::new(RichText::new(addon.display_title()).heading()).wrap());
                 });
@@ -85,7 +110,17 @@ impl App {
         });
 
         egui::ScrollArea::vertical().id_salt("detail").auto_shrink(false).show(ui, |ui| {
-            ui.vertical_centered(|ui| widgets::thumbnail(ui, &addon, 200.0));
+            picked = gallery(ui, pictures, self.picture);
+            let videos = page.map(|page| page.videos.as_slice()).unwrap_or_default();
+            if !videos.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(theme::small("Videos on YouTube"));
+                    for (i, video) in videos.iter().enumerate() {
+                        let address = format!("https://www.youtube.com/watch?v={video}");
+                        ui.hyperlink_to((i + 1).to_string(), address).on_hover_text("Opens in your browser");
+                    }
+                });
+            }
             match addon.status {
                 AddonStatus::Ok if addon.time_updated == 0 => {
                     ui.label(theme::muted_text("Loading details…"));
@@ -107,6 +142,17 @@ impl App {
                         format::ago(now, addon.time_updated),
                         format::ago(now, addon.time_created)
                     )));
+                    if let Some(page) = page {
+                        let mut seen = format!(
+                            "{} views · {} comments",
+                            format::count(page.views),
+                            format::count(page.comments)
+                        );
+                        if !page.author.is_empty() {
+                            seen = format!("By {} · {seen}", page.author);
+                        }
+                        ui.add(egui::Label::new(theme::small(seen)).wrap());
+                    }
                     ui.horizontal_wrapped(|ui| {
                         for tag in addon.tags.iter().filter(|t| *t != "Addon") {
                             theme::chip(ui, tag);
@@ -137,9 +183,22 @@ impl App {
                 }
             }
             ui.hyperlink_to("Open on the Workshop", addon.url());
-            if !addon.description.trim().is_empty() {
+            // Until the page is here, the few lines that came with the listing.
+            let blocks = bbcode::parse(page.map_or(&addon.description, |page| &page.description));
+            if !blocks.is_empty() {
                 ui.add_space(2.0);
-                ui.add(egui::Label::new(theme::muted_text(addon.description.trim())).wrap());
+                let long = blocks.len() > FOLDED_LINES + FOLD_SLACK;
+                let folded = long && !self.description_open;
+                description(ui, if folded { &blocks[..FOLDED_LINES] } else { &blocks });
+                if long {
+                    let label = if folded { "Show the whole description" } else { "Show less" };
+                    if ui.button(label).clicked() {
+                        fold = Some(folded);
+                    }
+                }
+            }
+            if self.page_is_loading(id) {
+                ui.label(theme::small("Loading the rest of the page…"));
             }
 
             if let Some(required) = addon.required.as_ref().filter(|r| !r.is_empty()) {
@@ -221,6 +280,15 @@ impl App {
         if close {
             self.selected = None;
         }
+        if widen {
+            self.detail_wide = !self.detail_wide;
+        }
+        if let Some(picked) = picked {
+            self.picture = picked;
+        }
+        if let Some(open) = fold {
+            self.description_open = open;
+        }
         if let Some(verdict) = verdict {
             self.vote(id, verdict);
         }
@@ -245,6 +313,167 @@ impl App {
                 });
             });
         });
+    }
+}
+
+/// The addon's pictures: one large and, when there are several, the others
+/// in a strip to pick from. Returns the picture that was picked, if any.
+fn gallery(ui: &mut egui::Ui, pictures: &[String], shown: usize) -> Option<usize> {
+    if !theme::thumbnails() || pictures.is_empty() {
+        return None;
+    }
+    let shown = shown.min(pictures.len() - 1);
+    let several = pictures.len() > 1;
+    let mut picked = None;
+
+    let width = ui.available_width();
+    let size = egui::vec2(width, (width * 9.0 / 16.0).round());
+    let (rect, response) =
+        ui.allocate_exact_size(size, if several { Sense::click() } else { Sense::hover() });
+    let backdrop = theme::mix(theme::bg(), egui::Color32::BLACK, 0.5);
+    ui.painter().rect_filled(rect, theme::radius(), backdrop);
+    widgets::paint_picture(ui, rect, &pictures[shown]);
+    if !several {
+        return None;
+    }
+    let hint = format!("Picture {} of {}. Click for the next one", shown + 1, pictures.len());
+    if response.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(hint).clicked() {
+        picked = Some((shown + 1) % pictures.len());
+    }
+    egui::ScrollArea::horizontal().id_salt("pictures").show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            for (i, url) in pictures.iter().enumerate() {
+                let response = widgets::picture(ui, url, STRIP_PICTURE, Sense::click());
+                if i == shown {
+                    let stroke = egui::Stroke::new(2.0, theme::accent());
+                    ui.painter().rect_stroke(
+                        response.rect,
+                        theme::radius(),
+                        stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                }
+                if response.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                    picked = Some(i);
+                }
+            }
+        });
+    });
+    picked
+}
+
+/// A description, laid out the way its markup asks.
+fn description(ui: &mut egui::Ui, blocks: &[Block]) {
+    // In a scope of its own: `line` changes the spacing.
+    ui.scope(|ui| description_blocks(ui, blocks));
+}
+
+fn description_blocks(ui: &mut egui::Ui, blocks: &[Block]) {
+    for (i, block) in blocks.iter().enumerate() {
+        match block {
+            Block::Text(spans) => line(ui, spans, false, false),
+            Block::Heading(spans) => {
+                ui.add_space(4.0);
+                line(ui, spans, true, false);
+            }
+            Block::Item(spans) => line(ui, spans, false, true),
+            Block::Quote(spans) => {
+                ui.indent(("quote", i), |ui| line(ui, spans, false, false));
+            }
+            Block::Code(code) => {
+                egui::Frame::new()
+                    .fill(theme::card_fill())
+                    .corner_radius(theme::radius())
+                    .inner_margin(6)
+                    .show(ui, |ui| {
+                        let code = RichText::new(code).monospace().color(theme::muted());
+                        ui.add(egui::Label::new(code).wrap());
+                    });
+            }
+            Block::Image(address) => described_picture(ui, address),
+            Block::Rule => {
+                ui.separator();
+            }
+            Block::Gap => ui.add_space(6.0),
+        }
+    }
+}
+
+/// One line of a description. It wraps, and its links can be clicked.
+fn line(ui: &mut egui::Ui, spans: &[Span], heading: bool, item: bool) {
+    // Rows are as tall as a button unless told otherwise, which is too
+    // far apart for running text.
+    ui.spacing_mut().interact_size.y = 0.0;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        if item {
+            ui.label(theme::muted_text("•  "));
+        }
+        for span in spans {
+            let mut text = RichText::new(&span.text);
+            if heading {
+                text = text.size(16.0);
+            }
+            if span.italic {
+                text = text.italics();
+            }
+            if span.underline {
+                text = text.underline();
+            }
+            if span.strike {
+                text = text.strikethrough();
+            }
+            match &span.link {
+                // Shown with where it leads, which the text need not say.
+                Some(address) => {
+                    ui.hyperlink_to(text, address).on_hover_text(address);
+                }
+                None => {
+                    let strong = heading || span.bold;
+                    ui.label(text.color(if strong { theme::text() } else { theme::muted() }));
+                }
+            }
+        }
+    });
+}
+
+/// A picture inside a description. Only Steam's own servers are asked for
+/// pictures; one kept anywhere else is a link to it instead.
+fn described_picture(ui: &mut egui::Ui, address: &str) {
+    if !theme::thumbnails() || !thumbs::is_on_steam(address) {
+        ui.hyperlink_to("Picture", address).on_hover_text(address);
+        return;
+    }
+    // How large a picture is shows only once it has loaded. Until then it
+    // gets a little room, and is not asked for before that room is in view.
+    let id = egui::Id::new(("described picture", address));
+    let known: Option<egui::Vec2> = ui.data(|data| data.get_temp(id));
+    let width = ui.available_width();
+    let size = match known {
+        Some(pixels) => {
+            let natural = pixels / ui.pixels_per_point();
+            natural * (width / natural.x).min(1.0)
+        }
+        None => egui::vec2(width, 40.0),
+    };
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let image = egui::Image::new(thumbs::uri(address, width * ui.pixels_per_point()));
+    match image.load_for_size(ui.ctx(), rect.size()) {
+        Ok(egui::load::TexturePoll::Ready { texture }) if known.is_some() => {
+            egui::Image::from_texture(texture).corner_radius(theme::radius()).paint_at(ui, rect);
+        }
+        Ok(egui::load::TexturePoll::Ready { texture }) => {
+            ui.data_mut(|data| data.insert_temp(id, texture.size));
+            ui.ctx().request_repaint();
+        }
+        Ok(_) => {
+            ui.painter().rect_filled(rect, theme::radius(), theme::card_fill());
+        }
+        Err(_) => {}
     }
 }
 

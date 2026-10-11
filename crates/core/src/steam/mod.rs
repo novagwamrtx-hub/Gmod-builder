@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use futures_util::stream::{self, StreamExt};
 
 use crate::discover::{self, Discovery};
-use crate::model::{Addon, AddonStatus, GMOD_APPID};
+use crate::model::{Addon, AddonStatus, Page, GMOD_APPID};
 
 pub use wire::{parse_collection, parse_file_list, CollectionChild, SearchPage};
 
@@ -358,6 +358,30 @@ impl SteamClient {
         }
         let url = format!("{API}/ISteamRemoteStorage/GetPublishedFileDetails/v1/");
         self.fetch(|| self.http.post(&url).form(&params)).await
+    }
+
+    /// What the addon's Workshop page shows: the whole description, every
+    /// picture, and the author's name. Needs a key; costs two requests.
+    pub async fn page(&self, id: u64) -> Result<Page, Error> {
+        let key = self.key()?;
+        let params = [
+            ("key", key.to_string()),
+            ("appid", GMOD_APPID.to_string()),
+            ("includeadditionalpreviews", "true".to_string()),
+            ("publishedfileids[0]", id.to_string()),
+        ];
+        let url = format!("{API}/IPublishedFileService/GetDetails/v1/");
+        let body = self.fetch(|| self.http.get(&url).query(&params)).await?;
+        let (mut page, author) = wire::parse_page(&body)?.ok_or(Error::NotFound(id))?;
+        // A page without its author's name is still worth showing.
+        if author != 0 {
+            let params = [("key", key.to_string()), ("steamids", author.to_string())];
+            let url = format!("{API}/ISteamUser/GetPlayerSummaries/v2/");
+            if let Ok(body) = self.fetch(|| self.http.get(&url).query(&params)).await {
+                page.author = wire::parse_player_name(&body).ok().flatten().unwrap_or_default();
+            }
+        }
+        Ok(page)
     }
 
     /// Direct members of a collection. Works without a key.

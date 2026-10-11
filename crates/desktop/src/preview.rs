@@ -118,7 +118,23 @@ fn render_previews() {
         built_for.len(),
         built_for.iter().take(3).map(|&id| app.title_of(id)).collect::<Vec<_>>()
     );
+    let page = app.pages.get(&top).expect("the addon's Workshop page was not fetched");
+    println!(
+        "page of {}: by {:?}, {} pictures, {} videos, {} views, a description of {} characters",
+        app.title_of(top),
+        page.author,
+        page.pictures.len(),
+        page.videos.len(),
+        page.views,
+        page.description.len()
+    );
     render(&mut app, Tab::Discover, "discover-detail");
+    app.detail_wide = true;
+    app.picture = 1;
+    app.description_open = true;
+    // Tall, to see the description under the pictures.
+    render_at(&mut app, Tab::Discover, "discover-detail-wide", [1400.0, 2200.0]);
+    app.detail_wide = false;
     app.selected = None;
 
     // Adding something built on a base brings the base along.

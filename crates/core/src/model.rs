@@ -38,6 +38,21 @@ pub struct Addon {
     pub creator: u64,
 }
 
+/// What an addon's Workshop page shows that a listing does not.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Page {
+    /// The whole description, in Steam's markup (see [`crate::bbcode`]).
+    pub description: String,
+    /// The addon's pictures, the main one first.
+    pub pictures: Vec<String>,
+    /// YouTube ids of its videos.
+    pub videos: Vec<String>,
+    pub views: u64,
+    pub comments: u64,
+    /// The author's name; empty if it could not be asked.
+    pub author: String,
+}
+
 /// What an addon is, from the one type tag every GMod addon carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Kind {

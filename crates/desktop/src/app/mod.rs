@@ -21,7 +21,7 @@ use gmcb_core::community::{Scores, Votes};
 use gmcb_core::discover::Discovery;
 use gmcb_core::gma::Archive;
 use gmcb_core::{
-    updates, Addon, AddonStatus, CollectionDraft, Error, SearchPage, SearchQuery, Sort, SteamClient,
+    updates, Addon, AddonStatus, CollectionDraft, Error, Page, SearchPage, SearchQuery, Sort, SteamClient,
 };
 
 use crate::files;
@@ -81,6 +81,10 @@ enum Msg {
         id: u64,
         kind: RelatedKind,
         result: Result<Vec<Addon>, Error>,
+    },
+    Page {
+        id: u64,
+        result: Result<Page, Error>,
     },
     KeyChecked {
         key: String,
@@ -151,6 +155,15 @@ pub struct App {
     /// The addon shown in the detail panel.
     pub(crate) selected: Option<u64>,
     pub(crate) related: HashMap<u64, Related>,
+    /// The Workshop pages of addons looked at this session.
+    pub(crate) pages: HashMap<u64, Page>,
+    pending_pages: HashSet<u64>,
+    /// Which of the selected addon's pictures is shown large.
+    pub(crate) picture: usize,
+    /// The whole of a long description is shown, not only its start.
+    pub(crate) description_open: bool,
+    /// The detail panel is at its wide size.
+    pub(crate) detail_wide: bool,
     pub(crate) import_input: String,
     pub(crate) collection_input: String,
 
@@ -230,6 +243,11 @@ impl App {
             discover: DiscoverState::default(),
             selected: None,
             related: HashMap::new(),
+            pages: HashMap::new(),
+            pending_pages: HashSet::new(),
+            picture: 0,
+            description_open: false,
+            detail_wide: false,
             import_input: String::new(),
             collection_input: String::new(),
             report: None,
@@ -387,6 +405,17 @@ impl App {
                         RelatedKind::BuiltFor => related.built_for = Some(found),
                     }
                 }
+                Msg::Page { id, result } => {
+                    self.pending_pages.remove(&id);
+                    match result {
+                        Ok(page) => {
+                            self.pages.insert(id, page);
+                        }
+                        // The panel says so itself.
+                        Err(Error::NotFound(_)) => {}
+                        Err(e) => self.error(e),
+                    }
+                }
                 Msg::KeyChecked { key, result } => {
                     if key != self.settings.api_key {
                         continue;
@@ -424,11 +453,30 @@ impl App {
 
     /// Shows an addon in the detail panel.
     pub(crate) fn select(&mut self, ctx: &egui::Context, id: u64) {
+        if self.selected != Some(id) {
+            self.picture = 0;
+            self.description_open = false;
+        }
         self.selected = Some(id);
+        self.fetch_page(ctx, id);
         let mut wanted = vec![id];
         wanted.extend(self.addons.get(&id).and_then(|a| a.required.clone()).unwrap_or_default());
         wanted.retain(|&id| self.needs_details(id));
         self.fetch_details(ctx, wanted);
+    }
+
+    /// Asks for an addon's Workshop page, unless it is here or on its way.
+    fn fetch_page(&mut self, ctx: &egui::Context, id: u64) {
+        if !self.client.has_key() || self.pages.contains_key(&id) || !self.pending_pages.insert(id) {
+            return;
+        }
+        let client = self.client.clone();
+        self.spawn(ctx, async move { Msg::Page { id, result: client.page(id).await } });
+    }
+
+    /// True while an addon's Workshop page is being fetched.
+    pub(crate) fn page_is_loading(&self, id: u64) -> bool {
+        self.pending_pages.contains(&id)
     }
 
     pub(crate) fn load_related(&mut self, ctx: &egui::Context, id: u64, kind: RelatedKind) {

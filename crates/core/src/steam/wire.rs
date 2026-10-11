@@ -6,12 +6,14 @@
 
 use serde::{Deserialize, Deserializer};
 
-use crate::model::{Addon, AddonStatus};
+use crate::model::{Addon, AddonStatus, Page};
 
 const RESULT_OK: u32 = 1;
 const FILE_TYPE_COLLECTION: u32 = 2;
 const VISIBILITY_FRIENDS_ONLY: u32 = 1;
 const VISIBILITY_PRIVATE: u32 = 2;
+const PREVIEW_IMAGE: u32 = 0;
+const PREVIEW_YOUTUBE: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchPage {
@@ -109,6 +111,54 @@ struct RawChild {
 }
 
 #[derive(Deserialize)]
+struct PageList {
+    #[serde(default)]
+    publishedfiledetails: Vec<RawPage>,
+}
+
+#[derive(Deserialize)]
+struct RawPage {
+    #[serde(default = "result_ok")]
+    result: u32,
+    #[serde(default)]
+    file_description: String,
+    #[serde(default)]
+    preview_url: Option<String>,
+    #[serde(default)]
+    previews: Vec<RawPreview>,
+    #[serde(default, deserialize_with = "lenient_u64")]
+    views: u64,
+    #[serde(default, deserialize_with = "lenient_u64")]
+    num_comments_public: u64,
+    #[serde(default, deserialize_with = "lenient_u64")]
+    creator: u64,
+}
+
+#[derive(Deserialize)]
+struct RawPreview {
+    #[serde(default)]
+    preview_type: u32,
+    #[serde(default)]
+    sortorder: i64,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    youtubevideoid: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PlayerList {
+    #[serde(default)]
+    players: Vec<RawPlayer>,
+}
+
+#[derive(Deserialize)]
+struct RawPlayer {
+    #[serde(default)]
+    personaname: String,
+}
+
+#[derive(Deserialize)]
 struct CollectionList {
     #[serde(default)]
     collectiondetails: Vec<RawCollection>,
@@ -176,6 +226,42 @@ pub fn parse_file_list(json: &str) -> Result<SearchPage, serde_json::Error> {
         addons: list.publishedfiledetails.into_iter().map(Addon::from).collect(),
         next_cursor: list.next_cursor.filter(|c| !c.is_empty()),
     })
+}
+
+/// Parses a `GetDetails` response asked for with the whole description and
+/// the additional previews, with the author's SteamID64 (0 if not given).
+/// `None` means Steam has no such addon.
+pub fn parse_page(json: &str) -> Result<Option<(Page, u64)>, serde_json::Error> {
+    let list = serde_json::from_str::<Envelope<PageList>>(json)?.response;
+    Ok(list.publishedfiledetails.into_iter().next().filter(|raw| raw.result == RESULT_OK).map(|mut raw| {
+        raw.previews.sort_by_key(|preview| preview.sortorder);
+        let mut pictures: Vec<String> = raw.preview_url.into_iter().collect();
+        let mut videos = Vec::new();
+        for preview in raw.previews {
+            match (preview.preview_type, preview.url, preview.youtubevideoid) {
+                (PREVIEW_IMAGE, Some(url), _) => pictures.push(url),
+                (PREVIEW_YOUTUBE, _, Some(video)) => videos.push(video),
+                _ => {}
+            }
+        }
+        pictures.retain(|url| !url.is_empty());
+        pictures.dedup();
+        let page = Page {
+            description: raw.file_description,
+            pictures,
+            videos,
+            views: raw.views,
+            comments: raw.num_comments_public,
+            author: String::new(),
+        };
+        (page, raw.creator)
+    }))
+}
+
+/// The name in a one-player `GetPlayerSummaries` response.
+pub fn parse_player_name(json: &str) -> Result<Option<String>, serde_json::Error> {
+    let list = serde_json::from_str::<Envelope<PlayerList>>(json)?.response;
+    Ok(list.players.into_iter().next().map(|player| player.personaname).filter(|name| !name.is_empty()))
 }
 
 /// Parses a single-collection `GetCollectionDetails` response. `None` means
@@ -262,6 +348,43 @@ mod tests {
     fn missing_collection() {
         let json = r#"{"response":{"result":1,"resultcount":1,"collectiondetails":[{"publishedfileid":"1","result":9}]}}"#;
         assert_eq!(parse_collection(json).unwrap(), None);
+    }
+
+    #[test]
+    fn workshop_page() {
+        // Cut down from a recorded keyed `GetDetails` response.
+        let json = r#"{"response":{"publishedfiledetails":[{"result":1,"publishedfileid":"104603291",
+            "preview_url":"https://images.example/main/","file_description":"[h1]Hello[/h1]",
+            "views":852806,"num_comments_public":1377,"creator":"76561197996891752","previews":[
+            {"previewid":"3","sortorder":7,"youtubevideoid":"iqHN5UKtA2w","preview_type":1},
+            {"previewid":"2","sortorder":3,"url":"https://images.example/second/","preview_type":0},
+            {"previewid":"1","sortorder":1,"url":"https://images.example/first/","preview_type":0},
+            {"previewid":"4","sortorder":9,"preview_type":2}]}]}}"#;
+        let (page, author) = parse_page(json).unwrap().unwrap();
+        assert_eq!(author, 76561197996891752);
+        assert_eq!(page.description, "[h1]Hello[/h1]");
+        assert_eq!(
+            page.pictures,
+            [
+                "https://images.example/main/",
+                "https://images.example/first/",
+                "https://images.example/second/"
+            ]
+        );
+        assert_eq!(page.videos, ["iqHN5UKtA2w"]);
+        assert_eq!((page.views, page.comments), (852806, 1377));
+
+        let bare = r#"{"response":{"publishedfiledetails":[{"result":1,"publishedfileid":"7"}]}}"#;
+        assert_eq!(parse_page(bare).unwrap(), Some((Page::default(), 0)));
+        let gone = r#"{"response":{"publishedfiledetails":[{"result":9,"publishedfileid":"1"}]}}"#;
+        assert_eq!(parse_page(gone).unwrap(), None);
+    }
+
+    #[test]
+    fn player_name() {
+        let json = r#"{"response":{"players":[{"steamid":"1","personaname":"rutka"}]}}"#;
+        assert_eq!(parse_player_name(json).unwrap().as_deref(), Some("rutka"));
+        assert_eq!(parse_player_name(r#"{"response":{"players":[]}}"#).unwrap(), None);
     }
 
     #[test]
