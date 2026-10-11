@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GMod Collection Builder",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fills and tidies your Steam Workshop collections: add or remove addons in bulk, and collect addons in a basket while you browse.",
   "icons": {
     "16": "icons/icon-16.png",

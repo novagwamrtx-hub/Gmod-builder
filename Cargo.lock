@@ -1417,7 +1417,7 @@ dependencies = [
 
 [[package]]
 name = "gmcb-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures-util",
  "reqwest",
@@ -1429,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "gmcb-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arboard",
  "directories",
@@ -1448,7 +1448,7 @@ dependencies = [
 
 [[package]]
 name = "gmcb-extension"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gmcb-core",
  "js-sys",
