@@ -6,7 +6,7 @@ members = ["crates/core", "crates/desktop", "crates/extension"]
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/novagwamrtx-hub/Gmod-helper-"
+repository = "https://github.com/novagwamrtx-hub/Gmod-builder"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

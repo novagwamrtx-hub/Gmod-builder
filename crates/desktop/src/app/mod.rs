@@ -37,7 +37,7 @@ pub use search::SearchState;
 /// The project's GitHub repository ("owner/name"): where new versions are
 /// released, where shared vouches are sent, and where the scores made from
 /// them are published.
-pub const PROJECT_REPO: &str = "novagwamrtx-hub/Gmod-helper-";
+pub const PROJECT_REPO: &str = "novagwamrtx-hub/Gmod-builder";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {

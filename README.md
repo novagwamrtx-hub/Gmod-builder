@@ -15,7 +15,7 @@ Made by fans. Not affiliated with Valve or Facepunch Studios.
 
 ## Getting it
 
-Download from [Releases](https://github.com/novagwamrtx-hub/Gmod-helper-/releases/latest):
+Download from [Releases](https://github.com/novagwamrtx-hub/Gmod-builder/releases/latest):
 
 - **Windows** – `gmod-collection-builder.exe`. It is a single file: put it anywhere and run it. Windows may say it "protected your PC", because the file is not signed. Choose *More info*, then *Run anyway*.
 - **Linux** – `gmod-collection-builder-linux-x86_64.tar.gz`. Built automatically and less tried than the Windows one.
